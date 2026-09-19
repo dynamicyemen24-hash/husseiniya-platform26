@@ -1,9 +1,9 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import React, { lazy, Suspense, type ComponentType } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
+import { ErrorBoundary } from "@/components/ui/errorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { OfflineProvider } from "./lib/offline/OfflineContext";
 import { FloatingSupportWidget } from "@/components/FloatingSupportWidget";
@@ -24,6 +24,13 @@ import { GlobalQuickActions } from "@/components/GlobalQuickActions";
 import { WishlistProvider } from "@/lib/wishlist";
 import { MarketingLayout } from "@/layouts/MarketingLayout";
 import { AppLayout } from "@/layouts/AppLayout";
+import { injectDesignTokens } from "@/lib/design";
+import { useEffect } from "react";
+
+// Inject design tokens on app initialization
+useEffect(() => {
+  injectDesignTokens();
+}, []);
 
 const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const Landing = lazy(() => import("@/pages/Landing"));
@@ -70,6 +77,8 @@ const Billing = lazy(() => import("@/pages/Billing"));
 const SubscriberOnboarding = lazy(() => import("@/pages/SubscriberOnboarding"));
 const ClaimSubscription = lazy(() => import("@/pages/ClaimSubscription"));
 const CostCenters = lazy(() => import("@/pages/CostCenters"));
+const SmartRequisitions = lazy(() => import("@/pages/SmartRequisitions"));
+const SmartBasicData = lazy(() => import("@/pages/SmartBasicData"));
 
 const ZatcaIntegration = lazy(() => import("@/pages/ZatcaIntegration"));
 const Beneficiaries = lazy(() => import("@/pages/Beneficiaries"));
@@ -143,6 +152,8 @@ const APP_ROUTES: RouteDef[] = [
   { path: "/billing", page: Billing },
   { path: "/onboarding", page: SubscriberOnboarding },
   { path: "/cost-centers", page: CostCenters },
+  { path: "/smart-requisitions", page: SmartRequisitions },
+  { path: "/smart-data", page: SmartBasicData },
   { path: "/zatca", page: ZatcaIntegration },
   { path: "/beneficiaries", page: Beneficiaries },
   { path: "/financial-statements", page: FinancialStatements },
@@ -223,6 +234,11 @@ function Router() {
 function App() {
   // Collect Core Web Vitals (CLS, INP, LCP) for real-user monitoring.
   useWebVitals({ reportOnce: true });
+
+  // Inject design tokens as CSS custom properties.
+  React.useEffect(() => {
+    injectDesignTokens();
+  }, []);
 
   return (
     <I18nProvider>

@@ -1,0 +1,272 @@
+/**
+ * Smart Requisitions Page - World-Class UX with i18n, RTL, and Auto-completion.
+ */
+
+import * as React from "react";
+import { SmartCombobox } from "@/components/ui/smartCombobox";
+import { StatusStrip } from "@/components/ui/loading";
+import { generateDocNumber } from "@shared/autoNumber";
+import { useCustomerSearch, useProductSearch } from "@/hooks/useSmartSearch";
+import { formatCurrency } from "@shared/autoComplete";
+import { Plus, Check, Clock, Search } from "lucide-react";
+
+export default function SmartRequisitions() {
+  const [docNumber] = React.useState(() =>
+    generateDocNumber("requisitions", 1)
+  );
+  const [customerQuery, setCustomerQuery] = React.useState("");
+  const [productQuery, setProductQuery] = React.useState("");
+  const customerSearch = useCustomerSearch(customerQuery);
+  const productSearch = useProductSearch(productQuery);
+
+  const customerOptions = React.useMemo(
+    () =>
+      (customerSearch.data ?? []).map(c => ({
+        value: c.id,
+        label: c.name,
+        code: c.code,
+      })),
+    [customerSearch.data]
+  );
+
+  const productOptions = React.useMemo(
+    () =>
+      (productSearch.data ?? []).map(p => ({
+        value: p.id,
+        label: p.name,
+        code: p.code,
+      })),
+    [productSearch.data]
+  );
+
+  const [selectedCustomer, setSelectedCustomer] = React.useState("");
+  const [rows, setRows] = React.useState([
+    { id: "1", product: "", qty: 1, unitPrice: 0, total: 0 },
+  ]);
+
+  const addRow = () => {
+    setRows(prev => [
+      ...prev,
+      { id: String(Date.now()), product: "", qty: 1, unitPrice: 0, total: 0 },
+    ]);
+  };
+
+  const grandTotal = rows.reduce((sum, r) => sum + r.total, 0);
+
+  return (
+    <div className="space-y-6 p-6" dir="rtl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-900">طلب مستلزمات</h1>
+          <p className="text-sm text-neutral-500 mt-1">{docNumber}</p>
+        </div>
+        <div className="flex gap-2">
+          <StatusStrip status="warning">
+            <Clock className="size-3 mr-1" />
+            قيد الإعداد
+          </StatusStrip>
+          <button className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-600">
+            <Check className="size-4" />
+            إرسال
+          </button>
+        </div>
+      </div>
+
+      {/* Document Info */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-lg border bg-white p-4">
+          <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+            رقم الطلب
+          </label>
+          <p className="text-lg font-mono font-bold text-brand mt-1">
+            {docNumber}
+          </p>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+            التاريخ
+          </label>
+          <p className="text-lg font-bold text-neutral-900 mt-1">
+            {new Date().toLocaleDateString("ar-SA")}
+          </p>
+        </div>
+        <div className="rounded-lg border bg-white p-4">
+          <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+            الإجمالي
+          </label>
+          <p className="text-lg font-bold text-neutral-900 mt-1">
+            {formatCurrency(grandTotal)}
+          </p>
+        </div>
+      </div>
+
+      {/* Customer Selection */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            الزبون
+          </label>
+          <SmartCombobox
+            options={customerOptions}
+            value={selectedCustomer}
+            onChange={val => {
+              setSelectedCustomer(val);
+              setCustomerQuery("");
+            }}
+            placeholder="اختر الزبون أو ابحث..."
+            searchPlaceholder="بحث عن الزبون..."
+            loading={customerSearch.isLoading}
+            ariaDescription="اختر الزبون من القائمة أو ابحث بالاسم"
+          />
+          {customerSearch.data && customerSearch.data.length > 0 && (
+            <p className="mt-1 text-xs text-neutral-500">
+              {customerSearch.data.length} نتيجة
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            الموظف المقدم
+          </label>
+          <input
+            placeholder="اسم الموظف..."
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+          />
+        </div>
+      </div>
+
+      {/* Products */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-sm font-medium text-neutral-700">
+            المنتجات المطلوبة
+          </label>
+          <button
+            type="button"
+            onClick={addRow}
+            className="inline-flex items-center gap-1 rounded-lg border border-dashed border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 transition-colors hover:border-brand-500 hover:text-brand"
+          >
+            <Plus className="size-4" />
+            منتج جديد
+          </button>
+        </div>
+
+        <div className="overflow-hidden rounded-lg border border-neutral-200">
+          <table className="w-full" role="grid" aria-label="المنتجات المطلوبة">
+            <thead>
+              <tr className="bg-neutral-50">
+                <th className="p-3 text-left text-xs font-semibold text-neutral-700">
+                  المنتج
+                </th>
+                <th className="p-3 text-center text-xs font-semibold text-neutral-700 w-20">
+                  الكمية
+                </th>
+                <th className="p-3 text-right text-xs font-semibold text-neutral-700">
+                  السعر
+                </th>
+                <th className="p-3 text-right text-xs font-semibold text-neutral-700">
+                  الإجمالي
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr
+                  key={row.id}
+                  className="border-t border-neutral-100 hover:bg-brand-50/50 transition-colors"
+                >
+                  <td className="p-3">
+                    <SmartCombobox
+                      options={productOptions}
+                      value={row.product}
+                      onChange={val => {
+                        const product = productSearch.data?.find(
+                          p => p.id === val
+                        );
+                        const price = Number(product?.salePrice ?? 0);
+                        setRows(prev =>
+                          prev.map(r =>
+                            r.id === row.id
+                              ? {
+                                  ...r,
+                                  product: val,
+                                  unitPrice: price,
+                                  total: r.qty * price,
+                                }
+                              : r
+                          )
+                        );
+                      }}
+                      placeholder="اختر المنتج..."
+                      searchPlaceholder="بحث عن المنتج..."
+                      loading={productSearch.isLoading}
+                    />
+                  </td>
+                  <td className="p-3 text-center">
+                    <input
+                      type="number"
+                      value={row.qty}
+                      min={1}
+                      onChange={e => {
+                        const qty = Math.max(1, Number(e.target.value));
+                        setRows(prev =>
+                          prev.map(r =>
+                            r.id === row.id
+                              ? { ...r, qty, total: qty * r.unitPrice }
+                              : r
+                          )
+                        );
+                      }}
+                      className="w-16 rounded border border-neutral-300 px-2 py-1 text-center text-sm"
+                    />
+                  </td>
+                  <td className="p-3 text-right font-mono text-sm">
+                    {formatCurrency(row.unitPrice)}
+                  </td>
+                  <td className="p-3 text-right font-mono font-bold text-sm">
+                    {formatCurrency(row.total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="rounded-xl border border-neutral-200 bg-white p-6">
+        <div className="flex items-center justify-between">
+          <span className="text-lg font-semibold text-neutral-700">
+            إجمالي الطلب
+          </span>
+          <span className="text-2xl font-bold text-brand">
+            {formatCurrency(grandTotal)}
+          </span>
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-sm text-neutral-500">
+          <Search className="size-4" />
+          <span>
+            {rows.length} منتج
+            {rows.length !== 1 ? "ات" : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-3">
+        <button className="rounded-lg border border-neutral-300 px-6 py-2.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50">
+          حفظ كمسودة
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-600">
+          <Check className="size-4" />
+          إرسال الطلب
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function useMemo<T>(fn: () => T, deps: unknown[]): T {
+  return React.useMemo(fn, deps);
+}

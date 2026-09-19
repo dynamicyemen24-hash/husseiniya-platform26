@@ -50,6 +50,7 @@ import { debtReportsRouter } from "./debtReportsRouter";
 import { invoiceEnhancementsRouter } from "./invoiceEnhancementsRouter";
 import { procurementReportsRouter } from "./procurementReportsRouter";
 import { posIntelligenceRouter } from "./posIntelligenceRouter";
+import { smartRouter } from "./smartRouter";
 
 /**
  * Separation of Duties (SoD): the creator of a financial transaction must not
@@ -1083,11 +1084,12 @@ export const appRouter = router({
   debtReports: debtReportsRouter,
   invoiceEnhancements: invoiceEnhancementsRouter,
   procurementReports: procurementReportsRouter,
-  posIntelligence: posIntelligenceRouter,
   inventory: inventoryRouter,
   procurement: procurementRouter,
   projects: projectsRouter,
   pos: posRouter,
+  posIntelligence: posIntelligenceRouter,
+  smart: smartRouter,
   auth: router({
     // SECURITY: strip credential material before it ever reaches the client.
     // `passwordHash` and session-tracking columns must never be serialized
