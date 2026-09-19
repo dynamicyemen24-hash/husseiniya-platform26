@@ -2,7 +2,7 @@ import "dotenv/config";
 import crypto from "crypto";
 import * as Sentry from "@sentry/node";
 import { expressErrorHandler } from "@sentry/node";
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
@@ -23,6 +23,33 @@ import {
 } from "./enterprise-performance";
 import { deriveTraceId, getSloSnapshot } from "./observability";
 import { getBackupHealth } from "./backup";
+import {
+  checkBruteForce,
+  recordFailedAttempt,
+  recordSuccessfulLogin,
+  generateNonce,
+  detectAnomaly,
+  updateIpReputation,
+} from "./securityShield";
+import {
+  deduplicateRequest,
+  generateDeduplicationKey,
+  checkETag,
+  generateETag,
+} from "./performance";
+import {
+  setSecurityHeaders,
+  obfuscateResponse,
+  stripSensitiveFields,
+  isDebugEnvironment,
+} from "./apiSecurity";
+import {
+  databaseCircuitBreaker,
+  databaseBulkhead,
+  healthMonitor,
+} from "./resilience";
+import { cacheManager, userCache, sessionCache } from "./cache";
+import { validateInput, detectSqlInjection } from "./inputSanitizer";
 
 export type DbHealth = { available: boolean; latencyMs: number };
 
@@ -49,11 +76,22 @@ async function checkDbHealth(): Promise<DbHealth> {
     const t0 = Date.now();
     let result = false;
     try {
-      const db = await getDb();
-      if (db) {
-        await db.execute(sql`select 1`);
-        result = true;
-      }
+      // Use circuit breaker and bulkhead for database health check
+      await databaseCircuitBreaker.execute(
+        async () => {
+          await databaseBulkhead.execute(async () => {
+            const db = await getDb();
+            if (db) {
+              await db.execute(sql`select 1`);
+              result = true;
+            }
+          });
+        },
+        async () => {
+          // Fallback: return false on circuit breaker open
+          result = false;
+        }
+      );
     } catch {
       result = false;
     }
@@ -95,6 +133,68 @@ export function createApp(): Express {
   // Serverless cold-start mitigation: begin the Neon handshake immediately so
   // the first real query (login verify, health checks, etc.) is already warm.
   void warmDatabase();
+
+  // ── SECURITY SHIELD: Anti-Debug Detection ──
+  if (ENV.isProduction) {
+    if (isDebugEnvironment()) {
+      logger.warn("[SECURITY] Debug mode detected in production");
+    }
+  }
+
+  // ── SECURITY SHIELD: Request Security Middleware ──
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const path = req.path;
+
+    // Detect anomalies
+    const anomaly = detectAnomaly(ip, path);
+    if (anomaly.anomalous) {
+      logger.warn("[SECURITY] Anomaly detected", { ip, path, reason: anomaly.reason });
+      updateIpReputation(ip, false);
+      res.status(429).json({ error: "تم اكتشاف نشاط مشبوه" });
+      return;
+    }
+
+    // SQL injection detection in query parameters
+    if (req.query) {
+      for (const [key, value] of Object.entries(req.query)) {
+        if (typeof value === "string") {
+          const sqlCheck = detectSqlInjection(value);
+          if (!sqlCheck.safe) {
+            logger.warn("[SECURITY] SQL injection attempt detected", { ip, path, key, patterns: sqlCheck.patterns });
+            updateIpReputation(ip, false);
+            res.status(400).json({ error: "طلب غير صالح" });
+            return;
+          }
+        }
+      }
+    }
+
+    // Body SQL injection detection
+    if (req.body && typeof req.body === "object") {
+      const bodyStr = JSON.stringify(req.body);
+      const sqlCheck = detectSqlInjection(bodyStr);
+      if (!sqlCheck.safe) {
+        logger.warn("[SECURITY] SQL injection in body detected", { ip, path, patterns: sqlCheck.patterns });
+        updateIpReputation(ip, false);
+        res.status(400).json({ error: "طلب غير صالح" });
+        return;
+      }
+    }
+
+    // Set security headers
+    setSecurityHeaders(res);
+
+    // Add request fingerprint header
+    const fingerprint = crypto
+      .createHash("sha256")
+      .update(`${ip}|${req.headers["user-agent"] || ""}|${Date.now()}`)
+      .digest("hex")
+      .substring(0, 16);
+    res.setHeader("X-Request-Fingerprint", fingerprint);
+
+    next();
+  });
 
   // 12-factor request correlation — every request gets x-request-id early so
   // both access logs and error logs can be joined. This is the SINGLE source
@@ -230,6 +330,15 @@ export function createApp(): Express {
     standardHeaders: true,
     legacyHeaders: false,
     validate: false,
+    handler: (req: Request, res: Response) => {
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+      logger.warn("[SECURITY] API rate limit exceeded", { ip, path: req.path });
+      updateIpReputation(ip, false);
+      res.status(429).json({
+        error: "تم تجاوز الحد المسموح من طلبات API.",
+        retryAfter: Math.ceil((15 * 60 * 1000) / 1000),
+      });
+    },
     ...(maybeRedisStore ? { store: maybeRedisStore } : {}),
   });
 
@@ -240,6 +349,15 @@ export function createApp(): Express {
     standardHeaders: true,
     legacyHeaders: false,
     validate: false,
+    handler: (req: Request, res: Response) => {
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+      logger.warn("[SECURITY] Auth rate limit exceeded", { ip, path: req.path });
+      updateIpReputation(ip, false);
+      res.status(429).json({
+        error: "تم تجاوز الحد المسموح من محاولات تسجيل الدخول.",
+        retryAfter: Math.ceil((15 * 60 * 1000) / 1000),
+      });
+    },
     ...(maybeRedisStore ? { store: maybeRedisStore } : {}),
   });
 
@@ -463,6 +581,27 @@ export function createApp(): Express {
     res.status(200).json(getJwks());
   });
 
+  // ── Cache Statistics ──
+  app.get("/api/cache/stats", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, private");
+    res.status(200).json({
+      ok: true,
+      stats: cacheManager.getStats(),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // ── Circuit Breaker Status ──
+  app.get("/api/circuit-breaker", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, private");
+    res.status(200).json({
+      ok: true,
+      database: databaseCircuitBreaker.getStats(),
+      health: healthMonitor.getHealth(),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   registerStorageProxy(app);
 
   // SECURITY: Throttle the unauthenticated surfaces explicitly.
@@ -470,6 +609,53 @@ export function createApp(): Express {
   // - /api/web is the public storefront (including place-order writes).
   app.use("/api/oauth", authLimiter);
   app.use("/api/web", apiLimiter);
+
+  // ── SECURITY: Anti-Brute-Force for Login Endpoints ──
+  app.use("/api/trpc/auth.login", (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const body = req.body as any;
+    const identifier = body?.json?.email || body?.json?.username || "unknown";
+
+    const { allowed, retryAfterMs } = checkBruteForce(identifier, ip);
+    if (!allowed) {
+      logger.warn("[SECURITY] Brute force attempt blocked", { ip, identifier, retryAfterMs });
+      res.setHeader("Retry-After", String(Math.ceil(retryAfterMs / 1000)));
+      res.status(429).json({
+        error: "تم حظر المحاولة مؤقتاً بسبب محاولات كثيرة",
+        retryAfterMs,
+      });
+      return;
+    }
+
+    next();
+  });
+
+  // ── PERFORMANCE: ETag Middleware for GET requests ──
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "GET") {
+      return next();
+    }
+
+    const originalSend = res.send.bind(res);
+    res.send = function (body: any) {
+      if (body && req.headers["if-none-match"]) {
+        const etag = generateETag(body);
+        if (checkETag(req.headers["if-none-match"] as string, etag)) {
+          res.status(304).end();
+          return res;
+        }
+      }
+
+      if (body) {
+        const etag = generateETag(body);
+        res.setHeader("ETag", `W/"${etag}"`);
+      }
+
+      return originalSend(body);
+    };
+
+    next();
+  });
 
   registerOAuthRoutes(app);
   registerWebApi(app);
@@ -512,6 +698,19 @@ export function createApp(): Express {
         (req as any).requestId ||
         (req.headers["x-request-id"] as string) ||
         "unknown";
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+
+      // Log security-related errors
+      if (err?.status === 403 || err?.statusCode === 403) {
+        logger.warn("[SECURITY] Forbidden access attempt", {
+          requestId,
+          ip,
+          path: req.path,
+          method: req.method,
+        });
+        updateIpReputation(ip, false);
+      }
+
       try {
         Sentry.getCurrentScope?.().setTag("request_id", requestId);
         // expressErrorHandler() above already captured the exception;
@@ -542,6 +741,9 @@ export function createApp(): Express {
       });
     }
   );
+
+  // ── Start Health Monitoring ──
+  healthMonitor.start(30_000);
 
   return app;
 }

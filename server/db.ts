@@ -7,13 +7,44 @@ import { ENV } from "./_core/env";
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: Pool | null = null;
 let _warmed = false;
+let _poolCreatedAt = 0;
+
+const POOL_MAX_CONNECTIONS = parseInt(process.env.DB_POOL_MAX || "10");
+const POOL_IDLE_TIMEOUT_MS = parseInt(process.env.DB_POOL_IDLE || "30000");
+const POOL_MAX_LIFETIME_MS = parseInt(process.env.DB_POOL_LIFETIME || "1800000"); // 30 min
 
 export function getPool(): Pool {
+  const now = Date.now();
+
+  // Recycle pool if it's too old (serverless cold-start protection)
+  if (_pool && (now - _poolCreatedAt > POOL_MAX_LIFETIME_MS)) {
+    try {
+      _pool.end().catch(() => {});
+    } catch {
+      // Ignore cleanup errors
+    }
+    _pool = null;
+    _db = null;
+  }
+
   if (!_pool && process.env.DATABASE_URL) {
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 10,
+      max: POOL_MAX_CONNECTIONS,
+      idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
+      allowExitOnIdle: false,
     });
+    _poolCreatedAt = now;
+
+    // Log pool events in development
+    if (!ENV.isProduction) {
+      _pool.on("connect", () => {
+        console.log("[DB] New connection established");
+      });
+      _pool.on("remove", () => {
+        console.log("[DB] Connection removed");
+      });
+    }
   }
   return _pool as Pool;
 }
