@@ -176,7 +176,7 @@ export function validateInput(
   }
 
   // Unicode validation
-  if (!cfg.allowUnicode && /[^\x00-\x7F]/.test(input)) {
+  if (!cfg.allowUnicode && Array.from(input).some(c => c.charCodeAt(0) > 127)) {
     errors.push("Non-ASCII characters are not allowed");
   }
 
@@ -317,10 +317,7 @@ export function sanitizeUrl(url: string): string {
     .replace(/^file:/i, "");
 
   // Ensure valid protocol
-  if (
-    !sanitized.startsWith("http://") &&
-    !sanitized.startsWith("https://")
-  ) {
+  if (!sanitized.startsWith("http://") && !sanitized.startsWith("https://")) {
     sanitized = `https://${sanitized}`;
   }
 
@@ -352,9 +349,7 @@ export function isEmailValid(email: string): boolean {
 
 // ─── Phone Number Validation ──────────────────────────────────────
 export function sanitizePhone(phone: string): string {
-  return phone
-    .replace(/[^\d+\-() ]/g, "")
-    .trim();
+  return phone.replace(/[^\d+\-() ]/g, "").trim();
 }
 
 export function isPhoneValid(phone: string): boolean {

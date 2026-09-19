@@ -2,7 +2,12 @@ import "dotenv/config";
 import crypto from "crypto";
 import * as Sentry from "@sentry/node";
 import { expressErrorHandler } from "@sentry/node";
-import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import express, {
+  type Express,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
@@ -149,7 +154,11 @@ export function createApp(): Express {
     // Detect anomalies
     const anomaly = detectAnomaly(ip, path);
     if (anomaly.anomalous) {
-      logger.warn("[SECURITY] Anomaly detected", { ip, path, reason: anomaly.reason });
+      logger.warn("[SECURITY] Anomaly detected", {
+        ip,
+        path,
+        reason: anomaly.reason,
+      });
       updateIpReputation(ip, false);
       res.status(429).json({ error: "تم اكتشاف نشاط مشبوه" });
       return;
@@ -161,7 +170,12 @@ export function createApp(): Express {
         if (typeof value === "string") {
           const sqlCheck = detectSqlInjection(value);
           if (!sqlCheck.safe) {
-            logger.warn("[SECURITY] SQL injection attempt detected", { ip, path, key, patterns: sqlCheck.patterns });
+            logger.warn("[SECURITY] SQL injection attempt detected", {
+              ip,
+              path,
+              key,
+              patterns: sqlCheck.patterns,
+            });
             updateIpReputation(ip, false);
             res.status(400).json({ error: "طلب غير صالح" });
             return;
@@ -175,7 +189,11 @@ export function createApp(): Express {
       const bodyStr = JSON.stringify(req.body);
       const sqlCheck = detectSqlInjection(bodyStr);
       if (!sqlCheck.safe) {
-        logger.warn("[SECURITY] SQL injection in body detected", { ip, path, patterns: sqlCheck.patterns });
+        logger.warn("[SECURITY] SQL injection in body detected", {
+          ip,
+          path,
+          patterns: sqlCheck.patterns,
+        });
         updateIpReputation(ip, false);
         res.status(400).json({ error: "طلب غير صالح" });
         return;
@@ -351,7 +369,10 @@ export function createApp(): Express {
     validate: false,
     handler: (req: Request, res: Response) => {
       const ip = req.ip || req.socket.remoteAddress || "unknown";
-      logger.warn("[SECURITY] Auth rate limit exceeded", { ip, path: req.path });
+      logger.warn("[SECURITY] Auth rate limit exceeded", {
+        ip,
+        path: req.path,
+      });
       updateIpReputation(ip, false);
       res.status(429).json({
         error: "تم تجاوز الحد المسموح من محاولات تسجيل الدخول.",
@@ -611,24 +632,31 @@ export function createApp(): Express {
   app.use("/api/web", apiLimiter);
 
   // ── SECURITY: Anti-Brute-Force for Login Endpoints ──
-  app.use("/api/trpc/auth.login", (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip || req.socket.remoteAddress || "unknown";
-    const body = req.body as any;
-    const identifier = body?.json?.email || body?.json?.username || "unknown";
+  app.use(
+    "/api/trpc/auth.login",
+    (req: Request, res: Response, next: NextFunction) => {
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+      const body = req.body as any;
+      const identifier = body?.json?.email || body?.json?.username || "unknown";
 
-    const { allowed, retryAfterMs } = checkBruteForce(identifier, ip);
-    if (!allowed) {
-      logger.warn("[SECURITY] Brute force attempt blocked", { ip, identifier, retryAfterMs });
-      res.setHeader("Retry-After", String(Math.ceil(retryAfterMs / 1000)));
-      res.status(429).json({
-        error: "تم حظر المحاولة مؤقتاً بسبب محاولات كثيرة",
-        retryAfterMs,
-      });
-      return;
+      const { allowed, retryAfterMs } = checkBruteForce(identifier, ip);
+      if (!allowed) {
+        logger.warn("[SECURITY] Brute force attempt blocked", {
+          ip,
+          identifier,
+          retryAfterMs,
+        });
+        res.setHeader("Retry-After", String(Math.ceil(retryAfterMs / 1000)));
+        res.status(429).json({
+          error: "تم حظر المحاولة مؤقتاً بسبب محاولات كثيرة",
+          retryAfterMs,
+        });
+        return;
+      }
+
+      next();
     }
-
-    next();
-  });
+  );
 
   // ── PERFORMANCE: ETag Middleware for GET requests ──
   app.use((req: Request, res: Response, next: NextFunction) => {

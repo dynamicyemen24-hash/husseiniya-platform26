@@ -11,13 +11,15 @@ let _poolCreatedAt = 0;
 
 const POOL_MAX_CONNECTIONS = parseInt(process.env.DB_POOL_MAX || "10");
 const POOL_IDLE_TIMEOUT_MS = parseInt(process.env.DB_POOL_IDLE || "30000");
-const POOL_MAX_LIFETIME_MS = parseInt(process.env.DB_POOL_LIFETIME || "1800000"); // 30 min
+const POOL_MAX_LIFETIME_MS = parseInt(
+  process.env.DB_POOL_LIFETIME || "1800000"
+); // 30 min
 
 export function getPool(): Pool {
   const now = Date.now();
 
   // Recycle pool if it's too old (serverless cold-start protection)
-  if (_pool && (now - _poolCreatedAt > POOL_MAX_LIFETIME_MS)) {
+  if (_pool && now - _poolCreatedAt > POOL_MAX_LIFETIME_MS) {
     try {
       _pool.end().catch(() => {});
     } catch {

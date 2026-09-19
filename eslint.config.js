@@ -109,6 +109,8 @@ export default [
       "scripts/build-server.cjs",
       "temp/**",
       "lint-*.txt",
+      "test-results/**",
+      "scripts/_tmpdriftcheck.mts",
     ],
   },
 ];

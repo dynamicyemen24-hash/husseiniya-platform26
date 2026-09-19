@@ -130,6 +130,7 @@ class FakeDb {
   }
 
   update(table: TableRef) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const db = this;
     return {
       set(patch: unknown) {
@@ -157,6 +158,7 @@ class FakeDb {
   }
 
   insert(table: TableRef) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const db = this;
     return {
       values(rows: unknown) {
@@ -579,11 +581,10 @@ describe("Inventory E2E: Batch & Serial Tracking", () => {
   });
 
   it("serial tracking: available → sold → returned", () => {
-    let status = "available";
-    status = "sold";
+    let status = "sold";
     expect(status).toBe("sold");
-    status = "available";
-    expect(status).toBe("available");
+    status = "returned";
+    expect(status).toBe("returned");
   });
 
   it("batch expiry check", () => {

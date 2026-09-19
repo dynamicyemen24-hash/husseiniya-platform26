@@ -155,9 +155,7 @@ export function validateRequestFingerprint(
       ip,
       now - offset
     );
-    if (
-      timingSafeEqual(Buffer.from(fingerprint), Buffer.from(expected))
-    ) {
+    if (timingSafeEqual(Buffer.from(fingerprint), Buffer.from(expected))) {
       return true;
     }
   }
@@ -242,10 +240,7 @@ export function getIpReputation(ip: string): number {
   return rep.score;
 }
 
-export function updateIpReputation(
-  ip: string,
-  good: boolean
-): void {
+export function updateIpReputation(ip: string, good: boolean): void {
   const existing = ipReputationStore.get(ip) ?? {
     score: 80,
     lastSeen: Date.now(),

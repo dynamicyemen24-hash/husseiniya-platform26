@@ -39,11 +39,13 @@ export class LRUCache<T = any> {
     deletes: 0,
   };
 
-  constructor(options: {
-    maxSize?: number;
-    maxMemoryBytes?: number;
-    defaultTtlMs?: number;
-  } = {}) {
+  constructor(
+    options: {
+      maxSize?: number;
+      maxMemoryBytes?: number;
+      defaultTtlMs?: number;
+    } = {}
+  ) {
     this.maxSize = options.maxSize ?? 10_000;
     this.maxMemoryBytes = options.maxMemoryBytes ?? 100 * 1024 * 1024; // 100MB
     this.defaultTtlMs = options.defaultTtlMs ?? 5 * 60 * 1000; // 5 minutes
@@ -255,11 +257,14 @@ export class LRUCache<T = any> {
 export class CacheManager {
   private caches = new Map<string, LRUCache>();
 
-  getCache(name: string, options?: {
-    maxSize?: number;
-    maxMemoryBytes?: number;
-    defaultTtlMs?: number;
-  }): LRUCache {
+  getCache(
+    name: string,
+    options?: {
+      maxSize?: number;
+      maxMemoryBytes?: number;
+      defaultTtlMs?: number;
+    }
+  ): LRUCache {
     if (!this.caches.has(name)) {
       this.caches.set(name, new LRUCache(options));
     }

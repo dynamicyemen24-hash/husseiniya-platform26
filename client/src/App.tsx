@@ -25,6 +25,7 @@ import { WishlistProvider } from "@/lib/wishlist";
 import { MarketingLayout } from "@/layouts/MarketingLayout";
 import { AppLayout } from "@/layouts/AppLayout";
 
+const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Login = lazy(() => import("@/pages/Login"));
 const WorkspaceDashboard = lazy(() => import("@/pages/WorkspaceDashboard"));
@@ -111,9 +112,9 @@ const GUEST_ROUTES: RouteDef[] = [
   { path: "/verify-email", page: VerifyEmail },
 ];
 
-/** Operational pages — RequireAuth + AppLayout (داكن + سايدبار). */
+/** Main dashboard — operational home page. */
 const APP_ROUTES: RouteDef[] = [
-  { path: "/app", page: WorkspaceDashboard },
+  { path: "/app", page: DashboardPage },
   { path: "/accounting", page: Home },
   { path: "/commercial", page: Commercial },
   { path: "/reports", page: Reports },

@@ -75,9 +75,7 @@ interface QueryCacheEntry<T> {
 const queryCache = new Map<string, QueryCacheEntry<any>>();
 const QUERY_CACHE_TTL = 30_000; // 30 seconds
 
-export function getCachedQuery<T>(
-  key: string
-): T | null {
+export function getCachedQuery<T>(key: string): T | null {
   const entry = queryCache.get(key);
   if (!entry) return null;
 
@@ -122,14 +120,12 @@ export function invalidateQueryCache(pattern?: string): number {
 }
 
 // ─── Memory-Efficient Serialization ───────────────────────────────
-export function createStreamSerializer(
-  writable: NodeJS.WritableStream
-): {
+export function createStreamSerializer(writable: NodeJS.WritableStream): {
   write: (data: any) => boolean;
   end: () => void;
 } {
   let buffer: any[] = [];
-  let backpressure = false;
+  const backpressure = false;
 
   return {
     write(data: any) {
@@ -155,9 +151,7 @@ export function createStreamSerializer(
 // ─── Lazy Loading ─────────────────────────────────────────────────
 const lazyModules = new Map<string, Promise<any>>();
 
-export async function loadLazyModule<T>(
-  modulePath: string
-): Promise<T> {
+export async function loadLazyModule<T>(modulePath: string): Promise<T> {
   if (lazyModules.has(modulePath)) {
     return lazyModules.get(modulePath)!;
   }
@@ -236,12 +230,15 @@ function recordMetric(
 }
 
 export function getPerformanceStats(): {
-  operations: Record<string, {
-    count: number;
-    avgMs: number;
-    p95Ms: number;
-    errorRate: number;
-  }>;
+  operations: Record<
+    string,
+    {
+      count: number;
+      avgMs: number;
+      p95Ms: number;
+      errorRate: number;
+    }
+  >;
   memory: NodeJS.MemoryUsage;
   uptime: number;
 } {

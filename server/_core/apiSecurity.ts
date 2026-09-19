@@ -20,13 +20,12 @@
 import { createHmac, createHash, randomBytes, timingSafeEqual } from "crypto";
 
 // ─── Response Signing ─────────────────────────────────────────────
-const RESPONSE_SECRET = process.env.API_RESPONSE_SECRET || process.env.JWT_SECRET || "";
+const RESPONSE_SECRET =
+  process.env.API_RESPONSE_SECRET || process.env.JWT_SECRET || "";
 
 export function signResponse(data: string): string {
   if (!RESPONSE_SECRET) return "";
-  return createHmac("sha256", RESPONSE_SECRET)
-    .update(data)
-    .digest("hex");
+  return createHmac("sha256", RESPONSE_SECRET).update(data).digest("hex");
 }
 
 export function verifyResponseSignature(
@@ -188,9 +187,11 @@ export function generateApiKey(
   return { id, key, hash };
 }
 
-export function validateApiKey(
-  key: string
-): { valid: boolean; apiKey?: ApiKey; reason?: string } {
+export function validateApiKey(key: string): {
+  valid: boolean;
+  apiKey?: ApiKey;
+  reason?: string;
+} {
   if (!key.startsWith("ahk_")) {
     return { valid: false, reason: "Invalid key format" };
   }
@@ -276,10 +277,7 @@ export function setRateLimitHeaders(
 ): void {
   res.setHeader("X-RateLimit-Limit", limit);
   res.setHeader("X-RateLimit-Remaining", remaining);
-  res.setHeader(
-    "X-RateLimit-Reset",
-    Math.ceil((Date.now() + resetMs) / 1000)
-  );
+  res.setHeader("X-RateLimit-Reset", Math.ceil((Date.now() + resetMs) / 1000));
 }
 
 // ─── Security Headers ─────────────────────────────────────────────
