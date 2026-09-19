@@ -1635,7 +1635,7 @@ export const cycleCounts = pgTable(
     startedAt: timestamp("startedAt"),
     completedAt: timestamp("completedAt"),
     approvedAt: timestamp("approvedAt"),
-    approvedById: integer("approved_by_id").references(() => users.id),
+    approvedById: integer("approvedById").references(() => users.id),
     assignedToId: integer("assignedToId"),
     varianceThreshold: decimal("varianceThreshold", { precision: 5, scale: 2 })
       .default("5")
@@ -1989,7 +1989,7 @@ export const salesInvoices = pgTable(
     currencyId: integer("currencyId").references(() => currencies.id),
     // Posted/Reversed immutable tracking
     postedAt: timestamp("postedAt"),
-    postedById: integer("posted_by_id").references(() => users.id),
+    postedById: integer("postedById").references(() => users.id),
     reversedAt: timestamp("reversedAt"),
     reversedById: integer("reversedById").references(() => users.id),
     reversalReason: varchar("reversalReason", { length: 255 }),
@@ -2131,7 +2131,7 @@ export const purchaseInvoices = pgTable(
       .notNull(),
     // Posted/Reversed immutable tracking
     postedAt: timestamp("postedAt"),
-    postedById: integer("posted_by_id").references(() => users.id),
+    postedById: integer("postedById").references(() => users.id),
     reversedAt: timestamp("reversedAt"),
     reversedById: integer("reversedById").references(() => users.id),
     reversalReason: varchar("reversalReason", { length: 255 }),
@@ -3279,7 +3279,7 @@ export const payrollRuns = pgTable(
       .default("0")
       .notNull(),
     status: payrollStatusEnum("status").default("draft").notNull(),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
     // Sync columns
@@ -3486,7 +3486,7 @@ export const procurements = pgTable(
     currency: varchar("currency", { length: 10 }).default("YER"),
     supplierId: integer("supplierId").references(() => suppliers.id),
     status: requisitionStatusEnum("status").default("draft").notNull(),
-    approvedById: integer("approved_by_id").references(() => users.id),
+    approvedById: integer("approvedById").references(() => users.id),
     // ─── Multi-step approval workflow (Module A) ─────────────────────
     approvers: jsonb("approvers"), // ordered array of userIds
     approvalStep: integer("approvalStep").default(0).notNull(),
@@ -3660,7 +3660,7 @@ export const journalEntries = pgTable(
       "0"
     ),
     memo: text("memo"),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     postedAt: timestamp("postedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
@@ -3807,7 +3807,7 @@ export const recurringExpenses = pgTable(
       .notNull(),
     approverId: integer("approverId").references(() => users.id),
     approvedAt: timestamp("approvedAt"),
-    approvedById: integer("approved_by_id").references(() => users.id),
+    approvedById: integer("approvedById").references(() => users.id),
     paymentMethod: varchar("paymentMethod", { length: 50 }),
     paymentAccountId: integer("paymentAccountId").references(() => accounts.id),
     autoPay: boolean("autoPay").default(false).notNull(),
@@ -3822,7 +3822,7 @@ export const recurringExpenses = pgTable(
     metadata: jsonb("metadata"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     // Sync columns
     serverVersion: integer("serverVersion").default(1).notNull(),
     lastSyncAt: timestamp("lastSyncAt"),
@@ -4254,7 +4254,7 @@ export const posOrders = pgTable(
     total: decimal("total", { precision: 15, scale: 2 }).default("0"),
     paymentMethod: varchar("paymentMethod", { length: 20 }),
     status: varchar("status", { length: 20 }).default("completed"),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
     // Sync columns
@@ -4294,7 +4294,7 @@ export const posCashEvents = pgTable(
       .notNull(),
     reason: varchar("reason", { length: 255 }).notNull(),
     notes: text("notes"),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
     // Sync columns
@@ -4338,7 +4338,7 @@ export const posReturns = pgTable(
     refundAmount: decimal("refundAmount", { precision: 15, scale: 2 })
       .default("0")
       .notNull(),
-    createdById: integer("created_by_id")
+    createdById: integer("createdById")
       .notNull()
       .references(() => users.id),
     processedById: integer("processedById").references(() => users.id),
@@ -4632,7 +4632,7 @@ export const translations = pgTable(
     value: text("value").notNull(),
     context: varchar("context", { length: 100 }),
     isApproved: boolean("isApproved").default(false).notNull(),
-    approvedById: integer("approved_by_id").references(() => users.id),
+    approvedById: integer("approvedById").references(() => users.id),
     approvedAt: timestamp("approvedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
@@ -4681,7 +4681,7 @@ export const biometricTemplates = pgTable(
     enrolledById: integer("enrolledById")
       .notNull()
       .references(() => users.id),
-    approvedById: integer("approved_by_id").references(() => users.id),
+    approvedById: integer("approvedById").references(() => users.id),
     approvedAt: timestamp("approvedAt"),
     revokedAt: timestamp("revokedAt"),
     revokedById: integer("revokedById").references(() => users.id),
@@ -4902,7 +4902,7 @@ export const allocationRuns = pgTable(
     }).default("0"),
     details: jsonb("details"), // [{ targetCostCenterId, basisValue, allocatedAmount }]
     postedAt: timestamp("postedAt"),
-    postedById: integer("posted_by_id").references(() => users.id),
+    postedById: integer("postedById").references(() => users.id),
     reversedAt: timestamp("reversedAt"),
     reversedById: integer("reversedById").references(() => users.id),
     reversalReason: varchar("reversalReason", { length: 255 }),
@@ -4950,7 +4950,7 @@ export const budgetScenarios = pgTable(
     // Scenario assumptions
     assumptions: jsonb("assumptions"), // { growthRate, inflationRate, fxRate, ... }
     // Status
-    approvedById: integer("approved_by_id").references(() => users.id),
+    approvedById: integer("approvedById").references(() => users.id),
     approvedAt: timestamp("approvedAt"),
     isActive: boolean("isActive").default(true).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -4997,7 +4997,7 @@ export const budgetLines = pgTable(
     amount: decimal("amount", { precision: 15, scale: 2 })
       .default("0")
       .notNull(),
-    spentAmount: decimal("spentAmount", { precision: 15, scale: 2 })
+    spentAmount: decimal("spent_amount", { precision: 15, scale: 2 })
       .default("0")
       .notNull(),
     quantity: decimal("quantity", { precision: 15, scale: 4 }), // for driver-based budgets
@@ -5273,7 +5273,7 @@ export const reportDefinitions = pgTable(
     isSystem: boolean("isSystem").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     // Sync columns
     serverVersion: integer("serverVersion").default(1).notNull(),
     lastSyncAt: timestamp("lastSyncAt"),
@@ -5409,7 +5409,7 @@ export const consolidationAdjustments = pgTable(
     ),
     description: text("description"),
     postedAt: timestamp("postedAt"),
-    postedById: integer("posted_by_id").references(() => users.id),
+    postedById: integer("postedById").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
     // Sync columns
@@ -5788,7 +5788,7 @@ export const quotations = pgTable(
     notes: text("notes"),
     convertedRefType: varchar("convertedRefType", { length: 50 }),
     convertedRefId: integer("convertedRefId"),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   },
@@ -5858,7 +5858,7 @@ export const quotationVersions = pgTable(
     versionNo: integer("versionNo").default(1).notNull(),
     snapshot: jsonb("snapshot").notNull(),
     changeSummary: text("changeSummary"),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   t => [
@@ -5974,7 +5974,7 @@ export const quotationNegotiations = pgTable(
     message: text("message").notNull(),
     proposedTotal: decimal("proposedTotal", { precision: 18, scale: 2 }),
     proposedChanges: jsonb("proposedChanges").default({}),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   t => [index("idx_quotation_negotiations_quotation").on(t.quotationId)]
@@ -6012,7 +6012,7 @@ export const quotationLinks = pgTable(
     entityType: varchar("entityType", { length: 50 }).notNull(),
     entityId: integer("entityId").notNull(),
     notes: text("notes"),
-    createdById: integer("created_by_id").references(() => users.id),
+    createdById: integer("createdById").references(() => users.id),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   t => [
@@ -6105,70 +6105,70 @@ export const vouchers = pgTable(
     tenantId: integer("tenantId")
       .notNull()
       .references(() => tenants.id),
-    voucherNumber: varchar("voucherNumber", { length: 50 }).notNull(),
-    voucherPrefix: varchar("voucherPrefix", { length: 10 })
+    voucherNumber: varchar("voucher_number", { length: 50 }).notNull(),
+    voucherPrefix: varchar("voucher_prefix", { length: 10 })
       .default("VCH")
       .notNull(),
-    voucherType: voucherTypeEnum("voucherType").notNull(),
+    voucherType: voucherTypeEnum("voucher_type").notNull(),
     status: voucherStatusEnum("status").default("draft").notNull(),
-    voucherDate: timestamp("voucherDate").notNull(),
-    dueDate: timestamp("dueDate"),
-    postingDate: timestamp("postingDate"),
+    voucherDate: timestamp("voucher_date").notNull(),
+    dueDate: timestamp("due_date"),
+    postingDate: timestamp("posting_date"),
     amount: decimal("amount", { precision: 18, scale: 4 }).notNull(),
-    baseAmount: decimal("baseAmount", { precision: 18, scale: 4 })
+    baseAmount: decimal("base_amount", { precision: 18, scale: 4 })
       .default("0")
       .notNull(),
-    currencyId: integer("currencyId"),
-    exchangeRate: decimal("exchangeRate", { precision: 18, scale: 8 })
+    currencyId: integer("currency_id"),
+    exchangeRate: decimal("exchange_rate", { precision: 18, scale: 8 })
       .default("1")
       .notNull(),
-    counterpartyType: varchar("counterpartyType", { length: 20 }),
-    counterpartyId: integer("counterpartyId"),
-    counterpartyName: varchar("counterpartyName", { length: 255 }),
-    bankAccountId: integer("bankAccountId"),
-    bankAccountCode: varchar("bankAccountCode", { length: 20 }),
-    referenceNo: varchar("referenceNo", { length: 100 }),
-    referenceType: varchar("referenceType", { length: 50 }),
-    referenceId: integer("referenceId"),
-    linkedVoucherId: integer("linkedVoucherId"),
-    departmentId: integer("departmentId"),
-    projectId: integer("projectId"),
+    counterpartyType: varchar("counterparty_type", { length: 20 }),
+    counterpartyId: integer("counterparty_id"),
+    counterpartyName: varchar("counterparty_name", { length: 255 }),
+    bankAccountId: integer("bank_account_id"),
+    bankAccountCode: varchar("bank_account_code", { length: 20 }),
+    referenceNo: varchar("reference_no", { length: 100 }),
+    referenceType: varchar("reference_type", { length: 50 }),
+    referenceId: integer("reference_id"),
+    linkedVoucherId: integer("linked_voucher_id"),
+    departmentId: integer("department_id"),
+    projectId: integer("project_id"),
     costCenterId: integer("cost_center_id").references(() => costCenters.id),
-    businessUnit: varchar("businessUnit", { length: 100 }),
-    budgetId: integer("budgetId"),
-    budgetLineId: integer("budgetLineId"),
-    budgetValidated: boolean("budgetValidated").default(false),
-    budgetVariance: decimal("budgetVariance", {
+    businessUnit: varchar("business_unit", { length: 100 }),
+    budgetId: integer("budget_id"),
+    budgetLineId: integer("budget_line_id"),
+    budgetValidated: boolean("budget_validated").default(false),
+    budgetVariance: decimal("budget_variance", {
       precision: 18,
       scale: 4,
     }).default("0"),
-    approvalLevel: voucherApprovalLevelEnum("approvalLevel").default("none"),
+    approvalLevel: voucherApprovalLevelEnum("approval_level").default("none"),
     approvedById: integer("approved_by_id").references(() => users.id),
-    approvedAt: timestamp("approvedAt"),
-    rejectedById: integer("rejectedById"),
-    rejectedAt: timestamp("rejectedAt"),
-    rejectionReason: text("rejectionReason"),
-    requiresLevel1Approval: boolean("requiresLevel1Approval").default(false),
-    requiresLevel2Approval: boolean("requiresLevel2Approval").default(false),
-    requiresLevel3Approval: boolean("requiresLevel3Approval").default(false),
+    approvedAt: timestamp("approved_at"),
+    rejectedById: integer("rejected_by_id"),
+    rejectedAt: timestamp("rejected_at"),
+    rejectionReason: text("rejection_reason"),
+    requiresLevel1Approval: boolean("requires_level1_approval").default(false),
+    requiresLevel2Approval: boolean("requires_level2_approval").default(false),
+    requiresLevel3Approval: boolean("requires_level3_approval").default(false),
     postedById: integer("posted_by_id").references(() => users.id),
     journalEntryId: integer("journal_entry_id").references(
       () => journalEntries.id
     ),
-    reversalOfId: integer("reversalOfId"),
+    reversalOfId: integer("reversal_of_id"),
     description: text("description"),
     notes: text("notes"),
-    internalMemo: text("internalMemo"),
-    attachmentsCount: integer("attachmentsCount").default(0),
+    internalMemo: text("internal_memo"),
+    attachmentsCount: integer("attachments_count").default(0),
     branchId: integer("branch_id").references(() => branches.id),
     createdById: integer("created_by_id").references(() => users.id),
     updatedById: integer("updated_by_id").references(() => users.id),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-    serverVersion: integer("serverVersion").default(1).notNull(),
-    lastSyncAt: timestamp("lastSyncAt"),
-    conflictState: varchar("conflictState", { length: 20 }).default("none"),
-    aggregateId: uuid("aggregateId"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    serverVersion: integer("server_version").default(1).notNull(),
+    lastSyncAt: timestamp("last_sync_at"),
+    conflictState: varchar("conflict_state", { length: 20 }).default("none"),
+    aggregateId: uuid("aggregate_id"),
   },
   t => [
     index("idx_vouchers_tenant").on(t.tenantId),
@@ -6199,29 +6199,29 @@ export const voucherLines = pgTable(
     accountId: integer("accountId")
       .notNull()
       .references(() => accounts.id),
-    accountCode: varchar("accountCode", { length: 20 }),
-    accountName: varchar("accountName", { length: 255 }),
-    debitAmount: decimal("debitAmount", { precision: 18, scale: 4 }).default(
+    accountCode: varchar("account_code", { length: 20 }),
+    accountName: varchar("account_name", { length: 255 }),
+    debitAmount: decimal("debit_amount", { precision: 18, scale: 4 }).default(
       "0"
     ),
-    creditAmount: decimal("creditAmount", { precision: 18, scale: 4 }).default(
+    creditAmount: decimal("credit_amount", { precision: 18, scale: 4 }).default(
       "0"
     ),
     costCenterId: integer("cost_center_id").references(() => costCenters.id),
-    departmentId: integer("departmentId"),
-    projectId: integer("projectId"),
-    allocationPercentage: decimal("allocationPercentage", {
+    departmentId: integer("department_id"),
+    projectId: integer("project_id"),
+    allocationPercentage: decimal("allocation_percentage", {
       precision: 8,
       scale: 4,
     }).default("100"),
-    allocatedAmount: decimal("allocatedAmount", {
+    allocatedAmount: decimal("allocated_amount", {
       precision: 18,
       scale: 4,
     }).default("0"),
     description: text("description"),
     reference: varchar("reference", { length: 100 }),
-    lineOrder: integer("lineOrder").default(0),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    lineOrder: integer("line_order").default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
     serverVersion: integer("serverVersion").default(1).notNull(),
     lastSyncAt: timestamp("lastSyncAt"),
     conflictState: varchar("conflictState", { length: 20 }).default("none"),
@@ -6244,14 +6244,14 @@ export const voucherApprovals = pgTable(
     GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
     tenantId: integer("tenantId").references(() => tenants.id),
     voucherId: integer("voucherId").notNull(),
-    approverId: integer("approverId"),
-    approvalLevel: voucherApprovalLevelEnum("approvalLevel").default("level1"),
+    approverId: integer("approver_id"),
+    approvalLevel: voucherApprovalLevelEnum("approval_level").default("level1"),
     status: quotationApprovalStatusEnum("status").default("pending").notNull(),
     comment: text("comment"),
     decidedAt: timestamp("decidedAt"),
-    ipAddress: varchar("ipAddress", { length: 45 }),
-    userAgent: text("userAgent"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    ipAddress: varchar("ip_address", { length: 45 }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   t => [
     index("idx_voucher_approvals_voucher").on(t.voucherId),
@@ -6267,18 +6267,18 @@ export const voucherSequences = pgTable(
     tenantId: integer("tenantId")
       .notNull()
       .references(() => tenants.id),
-    voucherType: voucherTypeEnum("voucherType").notNull(),
+    voucherType: voucherTypeEnum("voucher_type").notNull(),
     prefix: varchar("prefix", { length: 10 }).notNull(),
-    currentNumber: integer("currentNumber").default(0).notNull(),
+    currentNumber: integer("current_number").default(0).notNull(),
     format: varchar("format", { length: 50 })
       .default("{PREFIX}/{YYYY}/{NNNNNN}")
       .notNull(),
-    resetPeriod: varchar("resetPeriod", { length: 20 }).default("yearly"),
-    lastResetDate: timestamp("lastResetDate"),
-    numberPadding: integer("numberPadding").default(6),
-    isActive: boolean("isActive").default(true),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    resetPeriod: varchar("reset_period", { length: 20 }).default("yearly"),
+    lastResetDate: timestamp("last_reset_date"),
+    numberPadding: integer("number_padding").default(6),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   t => [
     index("idx_voucher_sequences_tenant").on(t.tenantId),
@@ -6702,31 +6702,31 @@ export const securityEvents = pgTable(
     tenantId: integer("tenantId")
       .notNull()
       .references(() => tenants.id),
-    eventType: varchar("eventType", { length: 100 }).notNull(),
+    eventType: varchar("event_type", { length: 100 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
-    rawData: jsonb("rawData"),
+    rawData: jsonb("raw_data"),
     severity: varchar("severity", { length: 20 }).default("medium").notNull(),
     status: varchar("status", { length: 30 }).default("detected").notNull(),
-    actorType: varchar("actorType", { length: 20 }).default("system"),
-    actorId: varchar("actorId", { length: 255 }),
-    actorName: varchar("actorName", { length: 255 }),
-    actorIp: varchar("actorIp", { length: 45 }),
-    actorUserAgent: text("actorUserAgent"),
-    incidentId: integer("incidentId"),
-    iocType: varchar("iocType", { length: 50 }),
-    iocValue: varchar("iocValue", { length: 255 }),
-    targetType: varchar("targetType", { length: 50 }),
-    targetId: varchar("targetId", { length: 255 }),
-    targetName: varchar("targetName", { length: 255 }),
-    riskScore: decimal("riskScore", { precision: 8, scale: 2 }).default("0"),
-    mitreTechniqueId: varchar("mitreTechniqueId", { length: 20 }),
-    mitreTacticId: varchar("mitreTacticId", { length: 20 }),
-    attackPattern: text("attackPattern"),
-    sessionId: varchar("sessionId", { length: 255 }),
-    eventTimestamp: timestamp("eventTimestamp").defaultNow().notNull(),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    actorType: varchar("actor_type", { length: 20 }).default("system"),
+    actorId: varchar("actor_id", { length: 255 }),
+    actorName: varchar("actor_name", { length: 255 }),
+    actorIp: varchar("actor_ip", { length: 45 }),
+    actorUserAgent: text("actor_user_agent"),
+    incidentId: integer("incident_id"),
+    iocType: varchar("ioc_type", { length: 50 }),
+    iocValue: varchar("ioc_value", { length: 255 }),
+    targetType: varchar("target_type", { length: 50 }),
+    targetId: varchar("target_id", { length: 255 }),
+    targetName: varchar("target_name", { length: 255 }),
+    riskScore: decimal("risk_score", { precision: 8, scale: 2 }).default("0"),
+    mitreTechniqueId: varchar("mitre_technique_id", { length: 20 }),
+    mitreTacticId: varchar("mitre_tactic_id", { length: 20 }),
+    attackPattern: text("attack_pattern"),
+    sessionId: varchar("session_id", { length: 255 }),
+    eventTimestamp: timestamp("event_timestamp").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   t => [
     index("idx_security_events_tenant").on(t.tenantId),
@@ -6746,25 +6746,25 @@ export const securityIncidents = pgTable(
     tenantId: integer("tenantId")
       .notNull()
       .references(() => tenants.id),
-    incidentNumber: varchar("incidentNumber", { length: 50 }).notNull(),
+    incidentNumber: varchar("incident_number", { length: 50 }).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
     severity: varchar("severity", { length: 20 }).default("medium").notNull(),
     category: varchar("category", { length: 50 }),
     status: varchar("status", { length: 30 }).default("identified").notNull(),
-    affectedUsers: integer("affectedUsers"),
-    affectedSystems: integer("affectedSystems"),
-    dataBreach: boolean("dataBreach").default(false),
-    detectedAt: timestamp("detectedAt").defaultNow().notNull(),
-    containedAt: timestamp("containedAt"),
-    eradicatedAt: timestamp("eradicatedAt"),
-    recoveredAt: timestamp("recoveredAt"),
-    closedAt: timestamp("closedAt"),
-    createdBy: integer("createdBy"),
+    affectedUsers: integer("affected_users"),
+    affectedSystems: integer("affected_systems"),
+    dataBreach: boolean("data_breach").default(false),
+    detectedAt: timestamp("detected_at").defaultNow().notNull(),
+    containedAt: timestamp("contained_at"),
+    eradicatedAt: timestamp("eradicated_at"),
+    recoveredAt: timestamp("recovered_at"),
+    closedAt: timestamp("closed_at"),
+    createdBy: integer("created_by"),
     assignedTo: integer("assignedTo"),
     notes: text("notes"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   t => [
     index("idx_security_incidents_tenant").on(t.tenantId),
@@ -6786,14 +6786,14 @@ export const vulnerabilities = pgTable(
     severity: varchar("severity", { length: 20 }).default("medium").notNull(),
     status: varchar("status", { length: 30 }).default("open").notNull(),
     cveId: varchar("cveId", { length: 50 }),
-    cvssScore: decimal("cvssScore", { precision: 5, scale: 2 }),
+    cvssScore: decimal("cvss_score", { precision: 5, scale: 2 }),
     affectedAsset: varchar("affectedAsset", { length: 255 }),
-    discoveredAt: timestamp("discoveredAt").defaultNow().notNull(),
+    discoveredAt: timestamp("discovered_at").defaultNow().notNull(),
     patchedAt: timestamp("patchedAt"),
     remediation: text("remediation"),
-    discoveredBy: varchar("discoveredBy", { length: 255 }),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    discoveredBy: varchar("discovered_by", { length: 255 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   t => [
     index("idx_vulnerabilities_tenant").on(t.tenantId),
@@ -6811,8 +6811,8 @@ export const complianceControls = pgTable(
       .notNull()
       .references(() => tenants.id),
     framework: varchar("framework", { length: 50 }).notNull(),
-    controlId: varchar("controlId", { length: 50 }).notNull(),
-    controlName: varchar("controlName", { length: 255 }).notNull(),
+    controlId: varchar("control_id", { length: 50 }).notNull(),
+    controlName: varchar("control_name", { length: 255 }).notNull(),
     description: text("description"),
     status: varchar("status", { length: 30 })
       .default("not_implemented")
@@ -6821,8 +6821,8 @@ export const complianceControls = pgTable(
     owner: varchar("owner", { length: 255 }),
     dueDate: timestamp("dueDate"),
     lastAssessedAt: timestamp("lastAssessedAt"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   t => [
     index("idx_compliance_controls_tenant").on(t.tenantId),
@@ -6843,15 +6843,15 @@ export const threatIntelSources = pgTable(
     GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
     tenantId: integer("tenantId").references(() => tenants.id),
     sourceName: varchar("sourceName", { length: 255 }).notNull(),
-    sourceType: varchar("sourceType", { length: 50 }),
+    sourceType: varchar("source_type", { length: 50 }),
     url: text("url"),
     apiKeyRef: varchar("apiKeyRef", { length: 255 }),
     lastFetchAt: timestamp("lastFetchAt"),
     fetchIntervalMin: integer("fetchIntervalMin").default(1440),
-    isActive: boolean("isActive").default(true).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
     notes: text("notes"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   t => [
     index("idx_threat_intel_tenant").on(t.tenantId),
