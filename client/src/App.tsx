@@ -27,11 +27,6 @@ import { AppLayout } from "@/layouts/AppLayout";
 import { injectDesignTokens } from "@/lib/design";
 import { useEffect } from "react";
 
-// Inject design tokens on app initialization
-useEffect(() => {
-  injectDesignTokens();
-}, []);
-
 const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Login = lazy(() => import("@/pages/Login"));
@@ -89,14 +84,8 @@ const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("@/pages/TermsOfService"));
 
-/**
- * Route tables — single source of truth for every page. Keeping the paths
- * here (instead of ~30 hand-duplicated wrappers) makes adding/removing a page
- * a one-line change and guarantees the same layout/auth wrapper everywhere.
- */
 type RouteDef = { path: string; page: ComponentType };
 
-/** Public marketing & guest pages — MarketingLayout (أبيض Stripe). */
 const MARKETING_ROUTES: RouteDef[] = [
   { path: "/", page: Landing },
   { path: "/about", page: About },
@@ -113,7 +102,6 @@ const MARKETING_ROUTES: RouteDef[] = [
   { path: "/terms-of-service", page: TermsOfService },
 ];
 
-/** Standalone public auth pages (no chrome — full-screen gates). */
 const GUEST_ROUTES: RouteDef[] = [
   { path: "/login", page: Login },
   { path: "/claim", page: ClaimSubscription },
@@ -121,7 +109,6 @@ const GUEST_ROUTES: RouteDef[] = [
   { path: "/verify-email", page: VerifyEmail },
 ];
 
-/** Main dashboard — operational home page. */
 const APP_ROUTES: RouteDef[] = [
   { path: "/app", page: DashboardPage },
   { path: "/accounting", page: Home },
@@ -160,72 +147,38 @@ const APP_ROUTES: RouteDef[] = [
   { path: "/fiscal-periods", page: FiscalPeriods },
 ];
 
-/**
- * Unified Route Loader — Single lightweight circular progress for all lazy loads.
- * Replaces PageSplash + RouteLoader with one consistent brand experience.
- */
-function RouteLoader() {
-  return (
-    <output
-      className="min-h-[50vh] flex items-center justify-center"
-      aria-label="جاري تحميل الصفحة"
-    >
-      <div className="flex flex-col items-center gap-4 text-center">
-        <CircularProgress size={48} variant="brand" strokeWidth={3} />
-        <p className="text-sm text-muted-foreground font-medium">
-          جاري تحميل الصفحة…
-        </p>
-      </div>
-    </output>
-  );
-}
-
-/**
- * Initial Boot Loader — Only shows on first app load, then never again.
- * Uses sessionStorage to track if user has seen it.
- */
-function InitialBootLoader() {
-  return <RouteLoader />;
-}
-
 function Router() {
   return (
     <>
-      {/* Live document.title per route (SEO + tab readability) + native-style
-          scroll restoration (back/forward returns to the exact position). */}
       <PageTitle />
       <ScrollManager />
 
-      {/* #main-content anchors the skip-to-content link at the very top of
-          App for keyboard & screen-reader users (WCAG 2.4.1). */}
       <div id="main-content" tabIndex={-1} className="focus:outline-none">
-        <Suspense fallback={<InitialBootLoader />}>
-          <Switch>
-            {MARKETING_ROUTES.map(({ path, page: Page }) => (
-              <Route key={path} path={path}>
-                <MarketingLayout>
-                  <Page />
-                </MarketingLayout>
-              </Route>
-            ))}
-            {GUEST_ROUTES.map(({ path, page: Page }) => (
-              <Route key={path} path={path}>
+        <Switch>
+          {MARKETING_ROUTES.map(({ path, page: Page }) => (
+            <Route key={path} path={path}>
+              <MarketingLayout>
                 <Page />
-              </Route>
-            ))}
-            {APP_ROUTES.map(({ path, page: Page }) => (
-              <Route key={path} path={path}>
-                <RequireAuth>
-                  <AppLayout>
-                    <Page />
-                  </AppLayout>
-                </RequireAuth>
-              </Route>
-            ))}
-            <Route path={"/404"} component={NotFound} />
-            <Route component={NotFound} />
-          </Switch>
-        </Suspense>
+              </MarketingLayout>
+            </Route>
+          ))}
+          {GUEST_ROUTES.map(({ path, page: Page }) => (
+            <Route key={path} path={path}>
+              <Page />
+            </Route>
+          ))}
+          {APP_ROUTES.map(({ path, page: Page }) => (
+            <Route key={path} path={path}>
+              <RequireAuth>
+                <AppLayout>
+                  <Page />
+                </AppLayout>
+              </RequireAuth>
+            </Route>
+          ))}
+          <Route path={"/404"} component={NotFound} />
+          <Route component={NotFound} />
+        </Switch>
       </div>
     </>
   );
@@ -253,24 +206,22 @@ function App() {
         </a>
 
         <ThemeProvider defaultTheme="light" switchable>
-          <LoadingProvider>
-            <WishlistProvider>
-              <OfflineProvider>
-                <OfflineBanner />
-                <CookieConsent />
-                <TooltipProvider>
-                  <Toaster />
-                  <Router />
-                  <CommandPalette />
-                  <GlobalQuickActions />
-                  <FloatingSupportWidget />
-                  <AliasAIAssistant />
-                  <InstallPrompt />
-                  <SWUpdateToast />
-                </TooltipProvider>
-              </OfflineProvider>
-            </WishlistProvider>
-          </LoadingProvider>
+          <WishlistProvider>
+            <OfflineProvider>
+              <OfflineBanner />
+              <CookieConsent />
+              <TooltipProvider>
+                <Toaster />
+                <Router />
+                <CommandPalette />
+                <GlobalQuickActions />
+                <FloatingSupportWidget />
+                <AliasAIAssistant />
+                <InstallPrompt />
+                <SWUpdateToast />
+              </TooltipProvider>
+            </OfflineProvider>
+          </WishlistProvider>
         </ThemeProvider>
       </ErrorBoundary>
     </I18nProvider>

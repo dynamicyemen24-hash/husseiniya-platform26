@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -14,6 +14,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useInstallPrompt } from "@/lib/use-install-prompt";
 
 type DeviceType = "android" | "ios" | "desktop" | "unknown";
 type InstallMethod = "pwa" | "apk" | "playstore" | "appstore" | "manual";
@@ -25,6 +26,8 @@ interface DeviceInfo {
   canInstallPWA: boolean;
   method: InstallMethod;
   instructions: string[];
+  dailyActiveUsers?: number;
+  installSource?: "organic" | "referral" | "direct" | "social";
 }
 
 function detectDevice(): DeviceInfo {
@@ -33,10 +36,26 @@ function detectDevice(): DeviceInfo {
     window.matchMedia("(display-mode: standalone)").matches ||
     (window.navigator as any).standalone === true;
 
+  // Track install source if available from referrer or query params
+  const installSource =
+    typeof window !== "undefined"
+      ? (() => {
+          try {
+            const search = new URLSearchParams(window.location.search);
+            if (search.has("utm_source")) return "organic";
+            if (search.has("ref")) return "referral";
+            return "direct";
+          } catch {
+            return "direct";
+          }
+        })()
+      : "direct";
+
   let type: DeviceType = "unknown";
   let browser = "Unknown";
   let canInstallPWA = false;
 
+  // Device detection priority
   if (/Android/i.test(ua)) {
     type = "android";
     if (/Chrome/i.test(ua) && !/Edge/i.test(ua)) {
@@ -44,6 +63,7 @@ function detectDevice(): DeviceInfo {
       canInstallPWA = true;
     } else if (/Firefox/i.test(ua)) {
       browser = "Firefox";
+      canInstallPWA = true;
     } else if (/SamsungBrowser/i.test(ua)) {
       browser = "Samsung Browser";
       canInstallPWA = true;
@@ -68,12 +88,14 @@ function detectDevice(): DeviceInfo {
       canInstallPWA = true;
     } else if (/Firefox/i.test(ua)) {
       browser = "Firefox";
+      canInstallPWA = true;
     } else if (/Safari/i.test(ua)) {
       browser = "Safari";
       canInstallPWA = true;
     }
   }
 
+  // Determine install method based on capabilities
   let method: InstallMethod = "pwa";
   let instructions: string[] = [];
 
@@ -123,7 +145,16 @@ function detectDevice(): DeviceInfo {
     }
   }
 
-  return { type, browser, isStandalone, canInstallPWA, method, instructions };
+  return {
+    type,
+    browser,
+    isStandalone,
+    canInstallPWA,
+    method,
+    instructions,
+    dailyActiveUsers: 0, // Placeholder for analytics
+    installSource,
+  };
 }
 
 function getDeviceIcon(type: DeviceType) {

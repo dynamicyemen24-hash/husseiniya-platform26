@@ -316,7 +316,3 @@ export default function SmartBasicData() {
     </motion.div>
   );
 }
-
-function useMemo<T>(fn: () => T, deps: unknown[]): T {
-  return React.useMemo(fn, deps);
-}

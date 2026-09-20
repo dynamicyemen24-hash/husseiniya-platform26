@@ -227,7 +227,7 @@ export class WorkflowEngine {
         // Handled by approval system
         break;
       case "logEvent":
-        console.log(`[Workflow] ${action.target}:`, record);
+        console.warn(`[Workflow] ${action.target}:`, record);
         break;
       case "callAPI":
         // Handled by API call system

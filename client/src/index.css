@@ -299,22 +299,22 @@
   --chart-4: #eee6d6;
   --chart-5: #8b6b3d;
   --radius: 0.75rem;
-  --background: #fbf8f2;
+  --background: #ffffff;
   --foreground: #0e2a2b;
   --card: #ffffff;
   --card-foreground: #0e2a2b;
   --popover: #ffffff;
   --popover-foreground: #0e2a2b;
-  --secondary: #eee6d6;
+  --secondary: #fafafa;
   --secondary-foreground: #0e2a2b;
-  --muted: #f5f0e8;
+  --muted: #fafafa;
   --muted-foreground: #6b7280;
-  --accent: #eee6d6;
+  --accent: #fafafa;
   --accent-foreground: #0e2a2b;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e5dfd5;
-  --input: #e5dfd5;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
   --ring: #b87945;
 
   /* ── ALHUSAINIA brand scale (Heritage Ledger) ── */
@@ -356,6 +356,12 @@
   --primary-foreground: #102a2b;
   --sidebar-primary: #b87945;
   --sidebar-primary-foreground: #102a2b;
+  --chart-1: #b87945;
+  --chart-2: #d4a574;
+  --chart-3: #818cf8;
+  --chart-4: #e2b17a;
+  --chart-5: #34d399;
+  --radius: 0.75rem;
   --background: #0d1b1c;
   --foreground: #f0ebe3;
   --card: #162e30;

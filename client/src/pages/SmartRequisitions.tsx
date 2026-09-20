@@ -402,7 +402,3 @@ export default function SmartRequisitions() {
     </motion.div>
   );
 }
-
-function useMemo<T>(fn: () => T, deps: unknown[]): T {
-  return React.useMemo(fn, deps);
-}
