@@ -3,9 +3,12 @@
  *
  * Goal: external or transient failures must degrade gracefully instead of
  * crashing request handlers or the cron tick ("no-failure" policy):
- *  - withRetry: exponential backoff + full jitter for transient errors.
+ *  - withRetry: exponential backoff + full jitter for transient errors,
+ *    with optional shouldRetry predicate, maxElapsedMs deadline and
+ *    AbortSignal cancellation.
  *  - withTimeout: hard deadline so a hung dependency can't hang a handler.
- *  - CircuitBreaker: stops hammering a failing dependency and lets it heal.
+ *  - CircuitBreaker: stops hammering a failing dependency and lets it heal;
+ *    serves the registered fallback while OPEN instead of throwing.
  *  - Bulkhead: concurrency limiter to prevent resource exhaustion.
  *  - HealthMonitor: periodic health checks with degradation detection.
  *  - GracefulDegradation: fallback strategies for degraded mode.
@@ -56,6 +59,9 @@ export class CircuitBreaker {
   ): Promise<T> {
     if (this.state.state === "open") {
       if (Date.now() < this.state.nextAttemptTime) {
+        // Degrade gracefully when a fallback is registered instead of
+        // throwing — callers like the DB health probe depend on this.
+        if (fallback) return fallback();
         throw new Error("Circuit breaker is OPEN");
       }
       this.state.state = "half-open";
@@ -143,9 +149,42 @@ export interface RetryOptions {
   label?: string;
   /** Called before each retry attempt. */
   onRetry?: (error: unknown, attempt: number, delayMs: number) => void;
+  /**
+   * Custom retry predicate. Receives the error and the 1-based attempt that
+   * just failed; return false to fail fast without further retries.
+   * Combined (AND) with the built-in transient-error detection.
+   */
+  shouldRetry?: (error: unknown, attempt: number) => boolean;
+  /**
+   * Hard deadline for the whole retry loop in ms (delays included).
+   * When the next backoff would exceed the budget, the last error is
+   * thrown immediately instead of sleeping past the deadline.
+   */
+  maxElapsedMs?: number;
+  /** AbortSignal to cancel the retry loop (throws AbortError). */
+  signal?: AbortSignal;
 }
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      const err = new Error("Retry loop aborted");
+      err.name = "AbortError";
+      reject(err);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      const err = new Error("Retry loop aborted");
+      err.name = "AbortError";
+      reject(err);
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 
 function isRetryable(error: unknown): boolean {
   if (error instanceof Error) {
@@ -169,17 +208,40 @@ export async function withRetry<T>(
   const retries = Math.max(0, options.retries ?? 3);
   const baseDelayMs = Math.max(1, options.baseDelayMs ?? 300);
   const maxDelayMs = Math.max(baseDelayMs, options.maxDelayMs ?? 5_000);
+  const maxElapsedMs =
+    options.maxElapsedMs !== undefined
+      ? Math.max(0, options.maxElapsedMs)
+      : undefined;
+  const startedAt = Date.now();
+
+  const retryAllowed = (error: unknown, attempt: number): boolean => {
+    if (!isRetryable(error)) return false;
+    if (options.shouldRetry && !options.shouldRetry(error, attempt))
+      return false;
+    return true;
+  };
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    if (options.signal?.aborted) {
+      const err = new Error("Retry loop aborted");
+      err.name = "AbortError";
+      throw err;
+    }
     try {
       return await fn(attempt);
     } catch (error) {
       lastError = error;
-      if (attempt > retries || !isRetryable(error)) throw error;
+      if (attempt > retries || !retryAllowed(error, attempt)) throw error;
       const jittered =
         baseDelayMs * Math.pow(2, attempt - 1) * (0.5 + Math.random());
       const delayMs = Math.min(maxDelayMs, Math.round(jittered));
+      if (
+        maxElapsedMs !== undefined &&
+        Date.now() - startedAt + delayMs > maxElapsedMs
+      ) {
+        throw error;
+      }
       options.onRetry?.(error, attempt, delayMs);
       if (options.label) {
         console.warn(
@@ -187,7 +249,7 @@ export async function withRetry<T>(
           error instanceof Error ? error.message : error
         );
       }
-      await sleep(delayMs);
+      await sleep(delayMs, options.signal);
     }
   }
   throw lastError;
