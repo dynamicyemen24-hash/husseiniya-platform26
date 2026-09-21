@@ -75,7 +75,11 @@ export interface WorkflowRule {
   stopOnFailure?: boolean;
 }
 
-export type ActionResultStatus = "executed" | "scheduled" | "failed" | "skipped";
+export type ActionResultStatus =
+  | "executed"
+  | "scheduled"
+  | "failed"
+  | "skipped";
 
 export interface WorkflowActionResult {
   action: ActionType;
@@ -223,7 +227,9 @@ export function validateRule(
       (condition.operator === "in" || condition.operator === "notIn") &&
       !Array.isArray(condition.value)
     ) {
-      problems.push(`The '${condition.operator}' operator requires an array value`);
+      problems.push(
+        `The '${condition.operator}' operator requires an array value`
+      );
     }
   }
   return problems;
@@ -265,7 +271,10 @@ export class WorkflowEngine {
     return total;
   }
 
-  private trackScheduled(ruleId: string, timer: ReturnType<typeof setTimeout>): void {
+  private trackScheduled(
+    ruleId: string,
+    timer: ReturnType<typeof setTimeout>
+  ): void {
     const timers = this.scheduledTimers.get(ruleId) ?? [];
     timers.push(timer);
     this.scheduledTimers.set(ruleId, timers);
@@ -430,9 +439,7 @@ export class WorkflowEngine {
             error: message,
           });
           if (rule.stopOnFailure) {
-            for (const remaining of rule.actions.slice(
-              actionResults.length
-            )) {
+            for (const remaining of rule.actions.slice(actionResults.length)) {
               actionResults.push({ action: remaining.type, status: "skipped" });
             }
             break;
@@ -479,7 +486,9 @@ export class WorkflowEngine {
       default:
         // Fail closed: an unknown action is a configuration error, never a
         // silent no-op. validateRule() flags these before registration.
-        throw new Error(`Unknown workflow action: ${String((action as WorkflowAction).type)}`);
+        throw new Error(
+          `Unknown workflow action: ${String((action as WorkflowAction).type)}`
+        );
     }
   }
 

@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  Bulkhead,
-  CircuitBreaker,
-  withRetry,
-  withTimeout,
-} from "./resilience";
+import { Bulkhead, CircuitBreaker, withRetry, withTimeout } from "./resilience";
 
 const transient = () => {
   const err = new Error("fetch failed");
@@ -18,17 +13,16 @@ describe("CircuitBreaker — fallback while OPEN", () => {
       successThreshold: 1,
       timeoutMs: 60_000,
     });
-    await expect(breaker.execute(async () => {
-      throw transient();
-    })).rejects.toThrow("fetch failed");
+    await expect(
+      breaker.execute(async () => {
+        throw transient();
+      })
+    ).rejects.toThrow("fetch failed");
     expect(breaker.getState()).toBe("open");
 
     const fallback = vi.fn(async () => "degraded-ok");
     await expect(
-      breaker.execute(
-        async () => "should-not-run",
-        fallback
-      )
+      breaker.execute(async () => "should-not-run", fallback)
     ).resolves.toBe("degraded-ok");
     expect(fallback).toHaveBeenCalledTimes(1);
   });
@@ -145,7 +139,12 @@ describe("withRetry — policies", () => {
           calls++;
           throw transient();
         },
-        { retries: 10, baseDelayMs: 5_000, maxDelayMs: 10_000, maxElapsedMs: 50 }
+        {
+          retries: 10,
+          baseDelayMs: 5_000,
+          maxDelayMs: 10_000,
+          maxElapsedMs: 50,
+        }
       )
     ).rejects.toThrow("fetch failed");
     expect(calls).toBe(1);
