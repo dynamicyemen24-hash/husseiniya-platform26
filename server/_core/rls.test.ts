@@ -144,14 +144,29 @@ describe("0023_nuclear_fortress.sql — artifact contract (no DB)", () => {
 
 // Live-DB contract: runs ONLY in CI/staging where DATABASE_URL exists,
 // fails fast there if the fortress was not applied. Skipped otherwise.
+// Transport outages skip LOUDLY via dbTransportGuard (same contract as
+// dbLive.test.ts) — assertion failures always fail.
 const describeIfDb = process.env.DATABASE_URL ? describe : describe.skip;
 describeIfDb("nuclear fortress — live DB contract", () => {
-  it("tenant_isolation policy is enforced on sales_invoices", async () => {
-    const { neon } = await import("@neondatabase/serverless");
-    const sql = neon(process.env.DATABASE_URL as string);
-    const rows = (await sql.query(
-      `SELECT polname FROM pg_policy WHERE polrelid = 'public."sales_invoices"'::regclass`
-    )) as Array<{ polname: string }>;
-    expect(rows.map(r => r.polname)).toContain("tenant_isolation");
-  });
+  it(
+    "tenant_isolation policy is enforced on sales_invoices",
+    { timeout: 45000, retry: 1 },
+    async ({ skip }) => {
+      const { requireLiveTransport, isTransportError } = await import(
+        "../dbTransportGuard"
+      );
+      await requireLiveTransport(skip);
+      try {
+        const { neon } = await import("@neondatabase/serverless");
+        const sql = neon(process.env.DATABASE_URL as string);
+        const rows = (await sql.query(
+          `SELECT polname FROM pg_policy WHERE polrelid = 'public."sales_invoices"'::regclass`
+        )) as Array<{ polname: string }>;
+        expect(rows.map(r => r.polname)).toContain("tenant_isolation");
+      } catch (e) {
+        if (isTransportError(e)) return skip("neon transport unreachable");
+        throw e;
+      }
+    }
+  );
 });
