@@ -17,6 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "readiness": "node scripts/prod-readiness.mjs",
+    "readiness:strict": "node scripts/prod-readiness.mjs --strict",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate": "tsx scripts/run-migrations.ts",
     "fonts:download": "node scripts/download-fonts.mjs",
