@@ -1,7 +1,7 @@
-import { createTRPCReact, httpBatchLink, loggerLink } from '@trpc/react-query';
-import type { AppRouter } from '@alhusseiniya/types/api';
-import { QueryClient } from '@tanstack/react-query';
-import superjson from 'superjson';
+import { createTRPCReact, httpBatchLink, loggerLink } from "@trpc/react-query";
+import type { AppRouter } from "@alhusseiniya/types/api";
+import { QueryClient } from "@tanstack/react-query";
+import superjson from "superjson";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -11,7 +11,10 @@ export function createQueryClient() {
       queries: {
         staleTime: 60 * 1000,
         retry: (failureCount, error) => {
-          if (error instanceof Error && error.message.includes('UNAUTHORIZED')) {
+          if (
+            error instanceof Error &&
+            error.message.includes("UNAUTHORIZED")
+          ) {
             return false;
           }
           return failureCount < 3;
@@ -26,16 +29,16 @@ export function getTRPCClientOptions(getToken?: () => string | null) {
   return {
     links: [
       loggerLink({
-        enabled: (opts) =>
-          process.env.NODE_ENV === 'development' ||
-          (opts.direction === 'down' && opts.result instanceof Error),
+        enabled: opts =>
+          process.env.NODE_ENV === "development" ||
+          (opts.direction === "down" && opts.result instanceof Error),
       }),
       httpBatchLink({
-        url: `${process.env.NEXT_PUBLIC_SYSTEM_URL || ''}/api/trpc`,
+        url: `${process.env.NEXT_PUBLIC_SYSTEM_URL || ""}/api/trpc`,
         transformer: superjson,
         headers() {
           const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           };
           const token = getToken?.();
           if (token) {
@@ -46,7 +49,7 @@ export function getTRPCClientOptions(getToken?: () => string | null) {
         async fetch(url, options) {
           const response = await fetch(url, {
             ...options,
-            credentials: 'include',
+            credentials: "include",
           });
           return response;
         },

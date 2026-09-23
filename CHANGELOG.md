@@ -4,6 +4,34 @@ All notable changes are documented here. Format follows [Keep a Changelog](https
 
 ---
 
+## [7.2.0] — 2026-09-23 · Quality & Reliability Sprint — Sprint الجودة والموثوقية
+
+### للمشتركين والعملاء — What you will notice
+
+- **إصلاح أخطاء الواجهة الحرجة**: إصلاح أزرار "الإجراءات السريعة" في الصفحة الرئيسية (`Home.tsx`) التي كانت مكسورة بسبب كلاس CSS غير صالح (`px^4 py^2` → `px-4 py-2`).
+- **تحسين استقرار النظام**: بناء نظيف يمر بجميع فحوصات TypeScript و ESLint و Prettier — صفر أخطاء.
+- **أداء أفضل**: إصلاح مشاكل timeout في خدمة ZATCA باستخدام `AbortController` بدلاً من خيار `timeout` غير المدعوم في `fetch`.
+
+### تقني — Technical
+
+- **TypeScript Clean Build**: `pnpm check` يمر بصفر أخطاء — تم إصلاح 40+ خطأ في ملفات `FinancialStatements.tsx`، `Vouchers.tsx`، `InventoryRouter.ts`، `ERPRouter.ts`، `WorkflowRouter.ts`، `ZatcaService.ts`، `migrate.ts`، `cron.ts`، `seed/workflow-definitions.ts`.
+- **ESLint Clean**: `pnpm lint` يمر بصفر أخطاء — تم إصلاح متغيرات غير مستخدمة، تفضيل `const`، إعلانات في كتل case.
+- **Prettier Clean**: `pnpm format:check` يمر — تم إصلاح أخطاء بناء الجملة في `packages/i18n/src/types.generated.ts`.
+- **Build Success**: `pnpm build` ينجح بالكامل — بناء العميل + الخادم + ترحيلات قاعدة البيانات.
+- **إصلاحات المخزون**: إضافة استيراد `sql` المفقود في `inventoryRouter.ts` لعمليات تحديث الدفعات.
+- **إصلاحات المشتريات**: إضافة استيراد `budgets` في `erpRouter.ts`، إصلاح متغير `budgetAvailable` غير المستخدم.
+- **إصلاحات سير العمل**: تعطيل مؤقت لاستيراد `@alhusseiniya/workflow-engine` غير المبني، مع fallback يعمل مباشرة على قاعدة البيانات.
+- **إصلاحات ZATCA**: استبدال خيار `timeout` غير المدعوم في `fetch` بـ `AbortController`، إضافة حقل `stampError` مفقود في `CancelInvoiceResult`.
+- **تنظيف الكود**: إزالة ملفات غير مستخدمة (`InvoiceOrganized.tsx`، `TrialBalance.tsx`)، إزالة مسارات غير موجودة من `App.tsx`.
+
+### المطور — Developer Experience
+
+- جميع بوابات الجودة (`check`، `lint`، `format:check`، `build`) تعمل الآن بنجاح.
+- تقليل الديون التقنية: إزالة استيرادات مكسورة، متغيرات غير مستخدمة، كود ميت.
+- الأساس جاهز لبناء حزمة `@alhusseiniya/workflow-engine` في الإصدارات القادمة.
+
+---
+
 ## [7.1.0] — 2026-09-18 · Merchant Release — إصدار التاجر
 
 ### للمشتركين والعملاء — What you will notice

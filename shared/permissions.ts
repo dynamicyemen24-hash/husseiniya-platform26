@@ -146,6 +146,12 @@ export const PERMISSIONS = {
   QUOTATION_CONVERT: "quotation.convert",
   QUOTATION_ANALYZE: "quotation.analyze",
 
+  // ── Workflow ───────────────────────────────────────────────────
+  WORKFLOW_READ: "workflow.read",
+  WORKFLOW_WRITE: "workflow.write",
+  WORKFLOW_APPROVE: "workflow.approve",
+  WORKFLOW_ADMIN: "workflow.admin",
+
   // ── Audit ────────────────────────────────────────────────────
   AUDIT_VIEW: "audit.view",
   AUDIT_EXPORT: "audit.export",
@@ -189,6 +195,12 @@ export const EXTENDED_PERMISSIONS = {
 
   // Additional granular controls
   MASS_ASSIGN_PROTECT: "mass.assign.protect",
+
+  // Workflow permissions
+  WORKFLOW_READ: "workflow.read",
+  WORKFLOW_WRITE: "workflow.write",
+  WORKFLOW_APPROVE: "workflow.approve",
+  WORKFLOW_ADMIN: "workflow.admin",
 } as const;
 
 export type ExtendedPermissionKey =
@@ -252,6 +264,9 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.QUOTATION_CREATE,
       PERMISSIONS.QUOTATION_EDIT,
       PERMISSIONS.QUOTATION_ANALYZE,
+      PERMISSIONS.WORKFLOW_READ,
+      PERMISSIONS.WORKFLOW_WRITE,
+      PERMISSIONS.WORKFLOW_APPROVE,
     ] as readonly PermissionKey[],
     isSystem: true,
   },
@@ -277,6 +292,7 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.COMMERCIAL_VIEW,
       PERMISSIONS.QUOTATION_VIEW,
       PERMISSIONS.AUDIT_VIEW,
+      PERMISSIONS.WORKFLOW_READ,
     ] as readonly PermissionKey[],
     isSystem: true,
   },
@@ -290,6 +306,7 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.POS_CREATE_SALE,
       PERMISSIONS.POS_PRINT_RECEIPT,
       PERMISSIONS.INVENTORY_VIEW,
+      PERMISSIONS.WORKFLOW_READ,
     ] as readonly PermissionKey[],
     isSystem: true,
   },

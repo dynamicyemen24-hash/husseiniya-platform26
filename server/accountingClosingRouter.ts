@@ -33,6 +33,7 @@ import {
   purchaseInvoices,
 } from "../drizzle/schema";
 import { PERMISSIONS } from "../shared/permissions";
+import { recordAuditEvent } from "./_core/audit";
 
 type Db = any;
 
@@ -397,6 +398,23 @@ export const fiscalPeriodClosingRouter = router({
         details: input.notes || "",
       });
 
+      // Audit log
+      await recordAuditEvent(ctx, {
+        action: "FISCAL_PERIOD_CLOSED",
+        resourceType: "fiscal_period",
+        resourceId: String(input.periodId),
+        before: {
+          status: periods[0].status,
+        },
+        after: {
+          status: "closed",
+          closedAt: new Date().toISOString(),
+          closedById: ctx.user.id,
+          notes: input.notes,
+        },
+        metadata: { route: "accountingClosing.closePeriod" },
+      });
+
       return { success: true, period: periods[0].name };
     }),
 
@@ -435,6 +453,23 @@ export const fiscalPeriodClosingRouter = router({
             eq(fiscalPeriods.tenantId, tid)
           )
         );
+
+      // Audit log
+      await recordAuditEvent(ctx, {
+        action: "FISCAL_PERIOD_REOPENED",
+        resourceType: "fiscal_period",
+        resourceId: String(input.periodId),
+        before: {
+          status: periods[0].status,
+        },
+        after: {
+          status: "reopened",
+          reopenedAt: new Date().toISOString(),
+          reopenedById: ctx.user.id,
+          reopenReason: input.reason,
+        },
+        metadata: { route: "accountingClosing.reopenPeriod" },
+      });
 
       return { success: true, period: periods[0].name };
     }),

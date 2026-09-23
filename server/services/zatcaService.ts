@@ -181,6 +181,187 @@ export function getZATCAIntegrationStatus(
   };
 }
 
+// ─── ZATCA Gateway API ─────────────────────────────────
+const ZATCA_GATEWAY_ENDPOINT = "https://gw-fatoora.zatca.gov.sa/invoice/v1";
+const ZATCA_TIMEOUT = 30000;
+
+export interface SubmitInvoiceResult {
+  success: boolean;
+  invoiceUUID?: string;
+  stampStatus?: "cleared" | "rejected" | "pending";
+  stampError?: string;
+  qrCodeBase64?: string;
+  referenceNumber?: string;
+}
+
+export interface CancelInvoiceResult {
+  success: boolean;
+  stampStatus?: "cancelled";
+  referenceNumber?: string;
+  cancelCode?: string;
+  stampError?: string;
+}
+
+// Submit invoice to ZATCA gateway for real-time validation and stamping
+export async function submitInvoiceToZATCA(
+  invoice: ZATCAInvoice,
+  tenantId: number
+): Promise<SubmitInvoiceResult> {
+  const hash = generateInvoiceHash(invoice);
+  const qrCode = generateQRCodeString(invoice);
+
+  const payload = {
+    invoiceType: invoice.invoiceType,
+    invoiceNumber: invoice.invoiceNumber,
+    invoiceDate: invoice.invoiceDate,
+    totalAmount: invoice.totalAmount,
+    totalTax: invoice.totalTax,
+    supplierVAT: invoice.supplierVAT,
+    customerVAT: invoice.customerVAT,
+    lineItems: invoice.lineItems,
+    currency: invoice.currency,
+    // Attach stored QR and hash from previous generation
+    qrBase64: qrCode,
+    invoiceHash: hash,
+  };
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ZATCA_TIMEOUT);
+
+    const response = await fetch(`${ZATCA_GATEWAY_ENDPOINT}/submit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // In production, use proper auth (SAS token, client cert, etc.)
+        Authorization: `Bearer ${process.env.ZATCA_API_KEY || "dev-key"}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        stampError: data.error?.message ?? "ZATCA gateway request failed",
+      };
+    }
+
+    // Update local record with gateway response
+    const result: SubmitInvoiceResult = {
+      success: true,
+      invoiceUUID: data.invoiceUUID || data.uuid,
+      stampStatus: data.stampStatus ?? "pending",
+      referenceNumber: data.referenceNumber,
+      qrCodeBase64: data.qrCodeBase64 || qrCode,
+    };
+
+    // Store the result in DB - will be called from router
+    // await updateInvoiceZATCAStatus(invoice.id, {
+    //   stampStatus: result.stampStatus,
+    //   hash: hash,
+    //   stampedAt: new Date(),
+    //   qrBase64: result.qrCodeBase64,
+    // });
+
+    return result;
+  } catch (error) {
+    console.error("ZATCA gateway error:", error);
+    return {
+      success: false,
+      stampError:
+        error instanceof Error ? error.message : "Unknown ZATCA error",
+    };
+  }
+}
+
+// Cancel invoice with ZATCA gateway
+export async function cancelInvoiceZATCA(
+  invoiceUUID: string,
+  reason: string
+): Promise<CancelInvoiceResult> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ZATCA_TIMEOUT);
+
+    const response = await fetch(`${ZATCA_GATEWAY_ENDPOINT}/cancel`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.ZATCA_API_KEY || "dev-key"}`,
+      },
+      body: JSON.stringify({ invoiceUUID, reason }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        stampError: data.error?.message ?? "ZATCA cancellation failed",
+      };
+    }
+
+    return {
+      success: true,
+      stampStatus: "cancelled",
+      referenceNumber: data.referenceNumber,
+      cancelCode: data.cancelCode,
+    };
+  } catch (error) {
+    console.error("ZATCA cancel error:", error);
+    return {
+      success: false,
+      stampError:
+        error instanceof Error ? error.message : "Unknown ZATCA error",
+    };
+  }
+}
+
+// Poll ZATCA for invoice status
+export async function pollInvoiceZATCAStatus(
+  invoiceUUID: string
+): Promise<{ stampStatus: ZATCAInvoiceStatus; referenceNumber?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ZATCA_TIMEOUT);
+
+    const response = await fetch(
+      `${ZATCA_GATEWAY_ENDPOINT}/status?invoiceUUID=${invoiceUUID}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${process.env.ZATCA_API_KEY || "dev-key"}`,
+        },
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { stampStatus: "pending" as ZATCAInvoiceStatus };
+    }
+
+    return {
+      stampStatus: data.stampStatus ?? "pending",
+      referenceNumber: data.referenceNumber,
+    };
+  } catch (error) {
+    console.error("ZATCA status poll error:", error);
+    return { stampStatus: "pending" as ZATCAInvoiceStatus };
+  }
+}
+
 // ─── Generate QR Code String (Base64) ──────────────────
 export function generateQRCodeString(invoice: ZATCAInvoice): string {
   const qrData = generateQRCodeData(invoice);

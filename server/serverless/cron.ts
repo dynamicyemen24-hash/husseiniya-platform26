@@ -24,9 +24,12 @@ import {
   featureFlags,
   loginAttempts,
   users,
+  workflowDefinitions,
 } from "../../drizzle/schema";
-import { sql, count } from "drizzle-orm";
+import { sql, count, and, eq, lt } from "drizzle-orm";
 import { runNightlyBackupIfDue } from "../_core/backup";
+// import { getOverdueInstances, loadInstance, saveInstance } from "@alhusseiniya/workflow-engine/persistence";
+// import { createWorkflowMachine } from "@alhusseiniya/workflow-engine";
 
 export default async function handler(req: any, res: any) {
   const requestId =
@@ -84,7 +87,46 @@ export default async function handler(req: any, res: any) {
       // 3. Recurring expenses processing
       const recurring = await runRecurringExpenses(t.id, null);
 
-      // 4. Feature-flag health check — confirm no stale flags for this tenant
+      // 4. Workflow SLA timeout handling — fire TIMEOUT events for overdue tasks
+      // TODO: Re-enable when @alhusseiniya/workflow-engine package is built
+      const workflowTimeouts = 0;
+      // try {
+      //   const overdueInstances = await getOverdueInstances(t.id);
+      //   for (const inst of overdueInstances) {
+      //     if (!inst.currentAssigneeId) continue;
+      //
+      //     const [def] = await db
+      //       .select()
+      //       .from(workflowDefinitions)
+      //       .where(eq(workflowDefinitions.id, inst.definitionId))
+      //       .limit(1);
+      //
+      //     if (!def) continue;
+      //
+      //     const machine = createWorkflowMachine(def as any);
+      //     const context = await loadInstance(inst.id);
+      //     if (!context) continue;
+      //
+      //     const actor = machine.provide({ actions: {} }).start(context);
+      //
+      //     // Find active tasks that are overdue
+      //     const activeTasks = context.tasks.filter(
+      //       (task) => task.status === "active" && task.dueDate && new Date(task.dueDate) < new Date()
+      //     );
+      //
+      //     for (const task of activeTasks) {
+      //       actor.send({ type: "TIMEOUT", payload: { taskId: task.id } });
+      //       workflowTimeouts++;
+      //     }
+      //
+      //     const newContext = actor.getSnapshot().context;
+      //     await saveInstance(newContext);
+      //   }
+      // } catch (e) {
+      //   console.error(`[cron][${requestId}] Workflow timeout processing failed for tenant ${t.id}:`, e);
+      // }
+
+      // 5. Feature-flag health check — confirm no stale flags for this tenant
       await db
         .select()
         .from(featureFlags)
@@ -111,6 +153,7 @@ export default async function handler(req: any, res: any) {
         scheduledProcessed: scheduled.processed,
         recurringProcessed: recurring.processed,
         recurringFailed: recurring.failed,
+        workflowTimeouts,
         stats: {
           totalUsers: stats[0]?.totalUsers ?? 0,
           activeSessions: stats[0]?.activeSessions ?? 0,

@@ -78,18 +78,39 @@
   },
   "typography": {
     "fontFamily": {
-      "sans": { "value": ["Inter", "system-ui", "sans-serif"], "type": "fontFamily" },
-      "arabic": { "value": ["Noto Sans Arabic", "Inter", "system-ui", "sans-serif"], "type": "fontFamily" },
-      "mono": { "value": ["JetBrains Mono", "Fira Code", "monospace"], "type": "fontFamily" }
+      "sans": {
+        "value": ["Inter", "system-ui", "sans-serif"],
+        "type": "fontFamily"
+      },
+      "arabic": {
+        "value": ["Noto Sans Arabic", "Inter", "system-ui", "sans-serif"],
+        "type": "fontFamily"
+      },
+      "mono": {
+        "value": ["JetBrains Mono", "Fira Code", "monospace"],
+        "type": "fontFamily"
+      }
     },
     "fontSize": {
       "xs": { "value": "0.75rem", "type": "fontSize", "lineHeight": "1rem" },
-      "sm": { "value": "0.875rem", "type": "fontSize", "lineHeight": "1.25rem" },
+      "sm": {
+        "value": "0.875rem",
+        "type": "fontSize",
+        "lineHeight": "1.25rem"
+      },
       "base": { "value": "1rem", "type": "fontSize", "lineHeight": "1.5rem" },
-      "lg": { "value": "1.125rem", "type": "fontSize", "lineHeight": "1.75rem" },
+      "lg": {
+        "value": "1.125rem",
+        "type": "fontSize",
+        "lineHeight": "1.75rem"
+      },
       "xl": { "value": "1.25rem", "type": "fontSize", "lineHeight": "1.75rem" },
       "2xl": { "value": "1.5rem", "type": "fontSize", "lineHeight": "2rem" },
-      "3xl": { "value": "1.875rem", "type": "fontSize", "lineHeight": "2.25rem" },
+      "3xl": {
+        "value": "1.875rem",
+        "type": "fontSize",
+        "lineHeight": "2.25rem"
+      },
       "4xl": { "value": "2.25rem", "type": "fontSize", "lineHeight": "2.5rem" },
       "5xl": { "value": "3rem", "type": "fontSize", "lineHeight": "1" },
       "6xl": { "value": "3.75rem", "type": "fontSize", "lineHeight": "1" }
@@ -112,9 +133,18 @@
   },
   "shadow": {
     "sm": { "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)", "type": "boxShadow" },
-    "md": { "value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)", "type": "boxShadow" },
-    "lg": { "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)", "type": "boxShadow" },
-    "xl": { "value": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)", "type": "boxShadow" }
+    "md": {
+      "value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+      "type": "boxShadow"
+    },
+    "lg": {
+      "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+      "type": "boxShadow"
+    },
+    "xl": {
+      "value": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+      "type": "boxShadow"
+    }
   },
   "transition": {
     "fast": { "value": "150ms ease", "type": "transition" },

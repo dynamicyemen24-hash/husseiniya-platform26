@@ -38,5 +38,10 @@
       "cache": false
     }
   },
-  "globalEnv": ["DATABASE_URL", "NEON_DATABASE_URL", "JWT_SECRET", "NEXT_PUBLIC_SYSTEM_URL"]
+  "globalEnv": [
+    "DATABASE_URL",
+    "NEON_DATABASE_URL",
+    "JWT_SECRET",
+    "NEXT_PUBLIC_SYSTEM_URL"
+  ]
 }

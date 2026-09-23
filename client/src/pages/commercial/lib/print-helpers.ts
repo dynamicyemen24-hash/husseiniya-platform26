@@ -1,6 +1,32 @@
 import { toast } from "sonner";
 import { payLabels } from "./status-maps";
 
+const PRINT_STORAGE_KEY = "alhusainia_print_stats";
+const getPrintStats = (): {
+  total: number;
+  byType: Record<string, number>;
+  lastPrint: string;
+} => {
+  try {
+    const stored = localStorage.getItem(PRINT_STORAGE_KEY);
+    if (!stored) return { total: 0, byType: {}, lastPrint: "" };
+    return JSON.parse(stored);
+  } catch {
+    return { total: 0, byType: {}, lastPrint: "" };
+  }
+};
+const savePrintStats = (stats: {
+  total: number;
+  byType: Record<string, number>;
+  lastPrint: string;
+}) => {
+  try {
+    localStorage.setItem(PRINT_STORAGE_KEY, JSON.stringify(stats));
+  } catch {
+    // Ignore localStorage errors
+  }
+};
+
 export const escHtml = (v: unknown) =>
   String(v ?? "").replace(
     /[&<>"']/g,
@@ -23,21 +49,56 @@ export const fmtAmt = (v: unknown) =>
 export const fmtDate = (v: unknown) =>
   v ? new Date(v as string).toLocaleDateString("ar-EG") : "—";
 
-export const openPrintWindow = (html: string, width = 880, height = 720) => {
-  const win = window.open("", "_blank", `width=${width},height=${height}`);
+export const openPrintWindow = (
+  html: string,
+  width = 880,
+  height = 720,
+  options: { preview?: boolean; title?: string } = {}
+) => {
+  const { preview = false, title = "فاتورة المبيعات" } = options;
+  const stats = getPrintStats();
+  stats.total++;
+  const typeKey = title.includes("سند قبض")
+    ? "receipts"
+    : title.includes("فاتورة")
+      ? "invoices"
+      : "other";
+  stats.byType[typeKey] = (stats.byType[typeKey] || 0) + 1;
+  stats.lastPrint = new Date().toLocaleString("ar-EG");
+  savePrintStats(stats);
+
+  const win = window.open(
+    "",
+    "_blank",
+    `width=${width},height=${height},scrollbars=yes,menubar=no,toolbar=no,location=no,status=no`
+  );
   if (!win) {
     toast.error("الرجاء السماح بالنوافذ المنبثقة للطباعة");
     return;
   }
   win.document.open();
-  win.document.write(html);
+  win.document.write(`<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
+<title>${escHtml(title)}</title>
+<style>
+  body {font-family:"Segoe UI",Tahoma,Arial,sans-serif;direction:rtl;margin:20px;color:#17211f;background:#fff;}
+  .print-title {text-align:center; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #b87945;}
+  .print-title h1 {margin:0; font-size:24px; color:#102a2b;}
+  .print-meta {font-size:12px; color:#777; margin:8px 0;}
+  @media print {body {padding:10px;}}</style></head><body>${html}</body></html>`);
   win.document.close();
-  const doPrint = () => {
-    win.focus();
-    setTimeout(() => win.print(), 400);
-  };
-  if (win.document.readyState === "complete") doPrint();
-  else win.onload = doPrint;
+  win.focus();
+  if (preview) {
+    toast.info("يمكنك المعاينة الآن، اضغط طباعة من شاشة المتصفح");
+    setTimeout(() => win.print(), 500);
+  } else {
+    const doPrint = () => {
+      win.focus();
+      setTimeout(() => win.print(), 400);
+    };
+    if (win.document.readyState === "complete") doPrint();
+    else win.onload = doPrint;
+  }
 };
 
 export const printPaymentReceipt = async (data: {
@@ -109,7 +170,10 @@ export const printPaymentReceipt = async (data: {
 <div class="note">صدر بواسطة نظام ALHUSAINIA — ${new Date().toLocaleDateString("ar-EG")} — سند صادر بموجب النظام، يُحفظ في ملف السندات.</div>
 </body></html>`;
 
-    openPrintWindow(html);
+    openPrintWindow(html, 880, 720, {
+      preview: true,
+      title: `${isReceipt ? "سند قبض" : "سند صرف"} ${escHtml(data.invoice.invoiceNumber)}`,
+    });
   } catch (e: any) {
     toast.error("فشل تجهيز السند: " + (e?.message || ""));
   }
@@ -174,6 +238,7 @@ export const printSaleInvoice = async (invId: number, utils: any) => {
           `<tr><td class="c">${i + 1}</td><td>${escHtml(it.productName)}</td><td class="c">${it.quantity}</td><td class="c">${fmtAmt(it.unitPrice)}</td><td class="c">${fmtAmt(it.discount)}</td><td class="c">${fmtAmt(it.total)}</td></tr>`
       )
       .join("");
+    const parsedZatca = parseZatca(invoice.zatcaStamp);
 
     const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title>فاتورة ${escHtml(invoice.invoiceNumber)}</title>
@@ -221,6 +286,24 @@ td.c{text-align:center}tr:nth-child(even) td{background:#faf6ef}
   <tr class="total"><td>الإجمالي النهائي</td><td class="c">${fmtAmt(invoice.total)} ${escHtml(currency)}</td></tr>
 </table></div>
 ${invoice.notes ? `<div class="notes"><b>ملاحظات: </b>${escHtml(invoice.notes)}</div>` : ""}
+${
+  parsedZatca
+    ? `
+<div class="zatca-compliance" style="margin:24px 0;border:1px solid #102a2b;border-radius:8px;padding:16px;background:#f8f9fa">
+  <h4 style="margin:0 0 12px;color:#102a2b;font-size:13px;">التوافق مع نظام الفوترة الإلكترونية (ZATCA)</h4>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12px">
+    <div>
+      <p>رقم الفاتورة الموحد (UUID): <span style="color:#333;">${escHtml(parsedZatca.uuid)}</span></p>
+      <p>بصمة الهاش: <span style="color:#333;">${escHtml(parsedZatca.hash?.slice(0, 32) || "—")}</span></p>
+    </div>
+    <div>
+      <p>تاريخ الإمضاء: <span style="color:#333;">${parsedZatca.stampedAt ? fmtDate(parsedZatca.stampedAt) : "—"}</span></p>
+      <p>رمز الاستجابة السريع: <span style="color:#333;">${parsedZatca.qrBase64 ? "متوفر" : "غير متوفر"}</span></p>
+    </div>
+  </div>
+</div>`
+    : ""
+}
 <div class="footer">
   <div class="sign"><div class="line">توقيع المستلم</div></div>
   <div>${escHtml(institutionName)}<br/>${managerName ? "المدير: " + escHtml(managerName) : ""}<br/>صدر بواسطة نظام ALHUSAINIA — ${new Date().toLocaleDateString("ar-EG")}</div>
@@ -228,7 +311,10 @@ ${invoice.notes ? `<div class="notes"><b>ملاحظات: </b>${escHtml(invoice.n
 </div>
 </body></html>`;
 
-    openPrintWindow(html, 920, 760);
+    openPrintWindow(html, 920, 760, {
+      preview: true,
+      title: `فاتورة ${escHtml(invoice.invoiceNumber)}`,
+    });
   } catch (e: any) {
     toast.error("فشل تجهيز الفاتورة: " + (e?.message || ""));
   }

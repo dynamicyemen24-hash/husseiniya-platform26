@@ -62,6 +62,11 @@ export const BACKUP_TABLES: ReadonlyArray<{
   table: PgTable;
   tenantScoped: boolean;
 }> = [
+  {
+    name: "drizzle_migrations",
+    table: schema.drizzleMigrations,
+    tenantScoped: false,
+  },
   { name: "tenants", table: schema.tenants, tenantScoped: false },
   { name: "branches", table: schema.branches, tenantScoped: true },
   { name: "accounts", table: schema.accounts, tenantScoped: true },

@@ -39,12 +39,12 @@ export default defineConfig({
         "client/src/components/ui/**",
       ],
       thresholds: {
-        // Baseline (measured 2026-09-12, DB-gated tests offline): 39% lines,
-        // 37% funcs, 73% branches. Floors grow as coverage improves.
-        statements: 35,
-        branches: 70,
-        functions: 30,
-        lines: 35,
+        // Incremental raise from 35% (2026-09-12 baseline) to 50% target.
+        // Branches 70% -> 75%, Functions 30% -> 45%.
+        statements: 50,
+        branches: 75,
+        functions: 45,
+        lines: 50,
       },
     },
   },

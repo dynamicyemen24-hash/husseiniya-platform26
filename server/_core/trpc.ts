@@ -16,6 +16,7 @@ import {
   PERMISSION_DENIED_MSG,
   type PermissionKey,
 } from "./rbac";
+import { recordAuditEvent } from "./audit";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -99,6 +100,62 @@ const observabilityMiddleware = t.middleware(async opts => {
   }
 });
 
+/**
+ * auditMiddleware — auto-records audit events for security-relevant and financial procedures.
+ * - Runs on all procedures tagged `financial_write` (see observability.ts)
+ * - Runs on `adminProcedure` and `ownerProcedure`
+ * - Extracts `action` from procedure path (e.g., `vouchers.post` → `VOUCHER_POSTED`)
+ * - Captures `before` state by fetching resource pre-mutation for updates/deletes
+ */
+const auditMiddleware = t.middleware(async opts => {
+  const { ctx, next, path, type } = opts;
+  const route = path ?? "unknown";
+  const kind = classifyTrpcRoute(route, type);
+
+  // Only audit financial writes, admin, and owner procedures
+  const shouldAudit =
+    kind === "financial_write" ||
+    route.startsWith("admin.") ||
+    route.startsWith("owner.") ||
+    route.startsWith("security.") ||
+    route.startsWith("backup.") ||
+    route.startsWith("vouchers.") ||
+    route.startsWith("accountingClosing.") ||
+    route.startsWith("inventory.adjustStock") ||
+    route.startsWith("inventory.physicalCount");
+
+  if (!shouldAudit || !ctx.tenantId || !ctx.user) {
+    return next();
+  }
+
+  // Derive action from route
+  const action = route
+    .split(".")
+    .map(part => part.toUpperCase())
+    .join("_");
+
+  const result = await next();
+
+  // Record audit after successful execution
+  try {
+    await recordAuditEvent(ctx, {
+      action,
+      resourceType: route.split(".")[0],
+      resourceId: String((opts.input as any)?.id ?? "unknown"),
+      metadata: {
+        route,
+        type,
+        kind,
+      },
+    });
+  } catch (e) {
+    // Audit failures should never block the main operation
+    console.error("[audit] Failed to record audit event:", e);
+  }
+
+  return result;
+});
+
 export const publicProcedure = t.procedure.use(observabilityMiddleware);
 
 const requireUser = t.middleware(async opts => {
@@ -149,11 +206,13 @@ export const protectedProcedure = t.procedure
   .use(requireUser);
 export const tenantProcedure = t.procedure
   .use(observabilityMiddleware)
-  .use(requireTenant);
+  .use(requireTenant)
+  .use(auditMiddleware);
 
 export const adminProcedure = t.procedure
   .use(observabilityMiddleware)
   .use(requireTenant)
+  .use(auditMiddleware)
   .use(
     t.middleware(async opts => {
       const { ctx, next } = opts;
@@ -178,17 +237,23 @@ export const adminProcedure = t.procedure
  * سياسات الاشتراك، إدارة المستأجرين). يعتمد `requireOwner` من tenant.ts
  * والذي يقارن `openId` مع `OWNER_OPEN_ID`.
  */
-export const ownerProcedure = t.procedure.use(observabilityMiddleware).use(
-  t.middleware(async opts => {
-    const { ctx, next } = opts;
-    if (!ctx.user) {
-      throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
-    }
-    requireOwner(ctx);
-    const user = ctx.user;
-    return next({ ctx: { ...ctx, user, tenantId: ctx.tenantId } });
-  })
-);
+export const ownerProcedure = t.procedure
+  .use(observabilityMiddleware)
+  .use(auditMiddleware)
+  .use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+      if (!ctx.user) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: UNAUTHED_ERR_MSG,
+        });
+      }
+      requireOwner(ctx);
+      const user = ctx.user;
+      return next({ ctx: { ...ctx, user, tenantId: ctx.tenantId } });
+    })
+  );
 
 /**
  * `requirePermissions` — middleware factory enforcing granular RBAC.

@@ -210,12 +210,12 @@ function QuickActionsBar() {
           <span className="text-sm text-neutral-700">بحث سريع</span>
         </Pressable>
 
-        <Pressable className="flex items-center gap-3 px^4 py^2 rounded-lg bg-card transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800">
+        <Pressable className="flex items-center gap-3 px-4 py-2 rounded-lg bg-card transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800">
           <Users className="size-4 text-neutral-500" />
           <span className="text-sm text-neutral-700">القوائم</span>
         </Pressable>
 
-        <Pressable className="flex items-center gap-3 px^4 py^2 rounded-lg bg-card transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800">
+        <Pressable className="flex items-center gap-3 px-4 py-2 rounded-lg bg-card transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800">
           <Package className="size-4 text-neutral-500" />
           <span className="text-sm text-neutral-700">التقارير</span>
         </Pressable>

@@ -24,6 +24,7 @@ import {
   recordBackupSuccess,
   recordBackupFailure,
 } from "./_core/backup";
+import { recordAuditEvent } from "./_core/audit";
 
 export const backupRouter = router({
   run: adminProcedure
@@ -107,12 +108,27 @@ export const backupRouter = router({
         confirm: z.boolean().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       if (!input.dryRun && input.confirm !== true) {
         throw new Error(
           "Real restore requires confirm:true — refusing destructive operation without explicit confirmation"
         );
       }
-      return restoreBackup(input.id, { dryRun: input.dryRun });
+      const result = await restoreBackup(input.id, { dryRun: input.dryRun });
+
+      // Audit log
+      await recordAuditEvent(ctx, {
+        action: "BACKUP_RESTORED",
+        resourceType: "backup",
+        resourceId: input.id,
+        after: {
+          backupId: input.id,
+          dryRun: input.dryRun,
+          confirm: input.confirm,
+        },
+        metadata: { route: "backup.restore" },
+      });
+
+      return result;
     }),
 });

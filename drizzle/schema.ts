@@ -1967,8 +1967,11 @@ export const salesInvoices = pgTable(
       .notNull(),
     paymentMethod: paymentMethodEnum("paymentMethod").default("cash"),
     notes: text("notes"),
-    // ZATCA (Saudi e-invoicing) payload: { uuid, qrBase64, hash, stampedAt }
-    zatca: text("zatca"),
+    // ZATCA (Saudi e-invoicing) payload: { uuid, hash, stampedAt, stampStatus, qrBase64 }
+    zatca: jsonb("zatca").$default(() => ({
+      stampStatus: "pending",
+      stampError: null,
+    })),
     invoiceDate: timestamp("invoiceDate").defaultNow().notNull(),
     dueDate: timestamp("dueDate"),
     userId: integer("userId").references(() => users.id),
@@ -2111,7 +2114,10 @@ export const purchaseInvoices = pgTable(
       .notNull(),
     paymentMethod: paymentMethodEnum("paymentMethod").default("cash"),
     notes: text("notes"),
-    zatca: text("zatca"),
+    zatca: jsonb("zatca").$default(() => ({
+      stampStatus: "pending",
+      stampError: null,
+    })),
     invoiceDate: timestamp("invoiceDate").defaultNow().notNull(),
     dueDate: timestamp("dueDate"),
     userId: integer("userId").references(() => users.id),
@@ -6858,3 +6864,237 @@ export const threatIntelSources = pgTable(
     index("idx_threat_intel_active").on(t.isActive),
   ]
 );
+
+// ═══════════════════════════════════════════════════════════════════════
+// ─── WORKFLOW ENGINE ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+export const workflowStatusEnum = pgEnum("workflow_status", [
+  "draft",
+  "pending_approval",
+  "approved",
+  "rejected",
+  "in_progress",
+  "completed",
+  "cancelled",
+  "on_hold",
+]);
+
+export const workflowStepStatusEnum = pgEnum("workflow_step_status", [
+  "pending",
+  "active",
+  "completed",
+  "skipped",
+  "failed",
+  "reassigned",
+]);
+
+export const workflowStepTypeEnum = pgEnum("workflow_step_type", [
+  "approval",
+  "task",
+  "notification",
+  "automation",
+  "integration",
+  "parallel",
+  "gateway",
+]);
+
+export const workflowTransitionTypeEnum = pgEnum("workflow_transition_type", [
+  "submit",
+  "approve",
+  "reject",
+  "reassign",
+  "escalate",
+  "delegate",
+  "complete",
+  "cancel",
+  "resume",
+  "hold",
+]);
+
+export const workflowPriorityEnum = pgEnum("workflow_priority", [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+]);
+
+// Workflow Definitions — template for workflows
+export const workflowDefinitions = pgTable(
+  "workflow_definitions",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    code: varchar("code", { length: 50 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    nameAr: varchar("nameAr", { length: 200 }),
+    description: text("description"),
+    entityType: varchar("entityType", { length: 100 }).notNull(),
+    version: integer("version").default(1).notNull(),
+    steps: jsonb("steps").notNull(), // array of step definitions
+    settings: jsonb("settings").default({}), // workflow settings
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    createdById: integer("createdById").references(() => users.id),
+    updatedById: integer("updatedById").references(() => users.id),
+  },
+  t => [
+    index("idx_workflow_definitions_tenant").on(t.tenantId),
+    index("idx_workflow_definitions_entity").on(t.entityType),
+    index("idx_workflow_definitions_active").on(t.isActive),
+    unique("workflow_definitions_code_tenant_unique").on(t.code, t.tenantId),
+    check("chk_workflow_def_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type WorkflowDefinition = typeof workflowDefinitions.$inferSelect;
+export type InsertWorkflowDefinition = typeof workflowDefinitions.$inferInsert;
+
+// Workflow Instances — running workflows
+export const workflowInstances = pgTable(
+  "workflow_instances",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    definitionId: integer("definitionId")
+      .notNull()
+      .references(() => workflowDefinitions.id),
+    definitionVersion: integer("definitionVersion").default(1).notNull(),
+    entityType: varchar("entityType", { length: 100 }).notNull(),
+    entityId: uuid("entityId").notNull(),
+    status: workflowStatusEnum("status").default("draft").notNull(),
+    currentStepId: uuid("currentStepId"),
+    currentAssigneeId: uuid("currentAssigneeId"),
+    currentAssigneeRole: varchar("currentAssigneeRole", { length: 50 }),
+    priority: workflowPriorityEnum("priority").default("medium").notNull(),
+    dueDate: timestamp("dueDate"),
+    startedAt: timestamp("startedAt"),
+    completedAt: timestamp("completedAt"),
+    cancelledAt: timestamp("cancelledAt"),
+    cancelledById: uuid("cancelledById"),
+    cancellationReason: varchar("cancellationReason", { length: 255 }),
+    context: jsonb("context").default({}),
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    createdById: uuid("createdById").references(() => users.id),
+    updatedById: uuid("updatedById").references(() => users.id),
+  },
+  t => [
+    index("idx_workflow_instances_tenant").on(t.tenantId),
+    index("idx_workflow_instances_definition").on(t.definitionId),
+    index("idx_workflow_instances_entity").on(t.entityType, t.entityId),
+    index("idx_workflow_instances_status").on(t.status),
+    index("idx_workflow_instances_assignee").on(t.currentAssigneeId),
+    index("idx_workflow_instances_due").on(t.dueDate),
+    check("chk_workflow_inst_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type WorkflowInstance = typeof workflowInstances.$inferSelect;
+export type InsertWorkflowInstance = typeof workflowInstances.$inferInsert;
+
+// Workflow Tasks — individual tasks within an instance
+export const workflowTasks = pgTable(
+  "workflow_tasks",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    instanceId: integer("instanceId")
+      .notNull()
+      .references(() => workflowInstances.id),
+    stepId: uuid("stepId").notNull(),
+    stepCode: varchar("stepCode", { length: 50 }).notNull(),
+    stepName: varchar("stepName", { length: 200 }).notNull(),
+    stepType: workflowStepTypeEnum("stepType").notNull(),
+    status: workflowStepStatusEnum("status").default("pending").notNull(),
+    assigneeId: uuid("assigneeId"),
+    assigneeRole: varchar("assigneeRole", { length: 50 }),
+    assignedAt: timestamp("assignedAt"),
+    dueDate: timestamp("dueDate"),
+    startedAt: timestamp("startedAt"),
+    completedAt: timestamp("completedAt"),
+    completedBy: uuid("completedBy"),
+    outcome: varchar("outcome", { length: 50 }), // approved, rejected, completed, skipped, escalated, delegated
+    comment: text("comment"),
+    formData: jsonb("formData").default({}),
+    previousTaskId: uuid("previousTaskId"),
+    delegatedFromId: uuid("delegatedFromId"),
+    delegatedToId: uuid("delegatedToId"),
+    escalatedFromId: uuid("escalatedFromId"),
+    escalatedToId: uuid("escalatedToId"),
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  t => [
+    index("idx_workflow_tasks_tenant").on(t.tenantId),
+    index("idx_workflow_tasks_instance").on(t.instanceId),
+    index("idx_workflow_tasks_step").on(t.stepId),
+    index("idx_workflow_tasks_assignee").on(t.assigneeId),
+    index("idx_workflow_tasks_status").on(t.status),
+    index("idx_workflow_tasks_due").on(t.dueDate),
+    check("chk_workflow_task_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type WorkflowTask = typeof workflowTasks.$inferSelect;
+export type InsertWorkflowTask = typeof workflowTasks.$inferInsert;
+
+// Workflow History — audit trail of all transitions
+export const workflowHistory = pgTable(
+  "workflow_history",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    instanceId: integer("instanceId")
+      .notNull()
+      .references(() => workflowInstances.id),
+    taskId: uuid("taskId"),
+    fromStepId: uuid("fromStepId"),
+    toStepId: uuid("toStepId"),
+    transitionType: workflowTransitionTypeEnum("transitionType").notNull(),
+    actorId: uuid("actorId").notNull(),
+    actorRole: varchar("actorRole", { length: 50 }),
+    comment: text("comment"),
+    formData: jsonb("formData").default({}),
+    contextSnapshot: jsonb("contextSnapshot").default({}),
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => [
+    index("idx_workflow_history_tenant").on(t.tenantId),
+    index("idx_workflow_history_instance").on(t.instanceId),
+    index("idx_workflow_history_task").on(t.taskId),
+    index("idx_workflow_history_actor").on(t.actorId),
+    index("idx_workflow_history_created").on(t.createdAt),
+    check("chk_workflow_hist_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type WorkflowHistory = typeof workflowHistory.$inferSelect;
+export type InsertWorkflowHistory = typeof workflowHistory.$inferInsert;
+
+export const drizzleMigrations = pgTable("drizzle_migrations", {
+  id: serial("id").primaryKey(),
+  hash: varchar("hash", { length: 255 }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type DrizzleMigration = typeof drizzleMigrations.$inferSelect;
+export type InsertDrizzleMigration = typeof drizzleMigrations.$inferInsert;

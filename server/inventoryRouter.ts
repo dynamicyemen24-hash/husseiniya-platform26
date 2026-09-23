@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { router, tenantProcedure, requirePermissions } from "./_core/trpc";
 import { getDb } from "./db";
 import {
@@ -15,6 +15,7 @@ import {
   recordStockMovement,
 } from "./services/inventoryService";
 import { PERMISSIONS } from "../shared/permissions";
+import { recordAuditEvent } from "./_core/audit";
 
 export const inventoryRouter = router({
   // PAGINATION (mandatory): inventory is the highest-cardinality tenant table.
@@ -180,6 +181,8 @@ export const inventoryRouter = router({
         quantity: z.number().int().min(1),
         type: z.enum(["add", "remove", "set"]).default("add"),
         notes: z.string().optional(),
+        // Batch-aware: optional batch ID to track expiry and remaining quantity
+        batchId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -267,6 +270,34 @@ export const inventoryRouter = router({
           });
         }
       });
+
+      // Batch-aware: update product batch remaining quantity
+      if (input.batchId) {
+        await db.execute(sql`
+          UPDATE product_batches
+          SET quantityRemaining = CASE
+            WHEN input.type = 'add' THEN quantityReceived + quantityRemaining
+            WHEN input.type = 'remove' THEN GREATEST(quantityRemaining - input.quantity, 0)
+            ELSE quantityRemaining
+          END
+          WHERE id = ${input.batchId} AND tenantId = ${tid};
+        `);
+      }
+
+      // Audit log
+      await recordAuditEvent(ctx, {
+        action: "STOCK_ADJUSTED",
+        resourceType: "product",
+        resourceId: String(input.productId),
+        before: { quantity: previousQty },
+        after: { quantity: newQty, adjustmentType: input.type },
+        metadata: {
+          route: "inventory.adjustStock",
+          warehouseId: input.warehouseId,
+          batchId: input.batchId,
+        },
+      });
+
       return { success: true, previousQty, newQty };
     }),
 
@@ -278,6 +309,8 @@ export const inventoryRouter = router({
         warehouseId: z.number(),
         countedQty: z.number().int().min(0),
         notes: z.string().optional(),
+        // Batch-aware: optional batch ID to track expiry and remaining quantity
+        batchId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -332,6 +365,183 @@ export const inventoryRouter = router({
           });
         }
       });
+
+      // Batch-aware: update product batch remaining quantity
+      if (input.batchId) {
+        await db.execute(sql`
+          UPDATE product_batches
+          SET quantityRemaining = CASE
+            WHEN quantityRemaining >= input.countedQty THEN quantityRemaining - input.countedQty
+            ELSE 0
+          END
+          WHERE id = ${input.batchId} AND tenantId = ${tid};
+        `);
+      }
+
+      // Audit log
+      await recordAuditEvent(ctx, {
+        action: "PHYSICAL_COUNT_PERFORMED",
+        resourceType: "product",
+        resourceId: String(input.productId),
+        before: { quantity: previousQty },
+        after: { quantity: input.countedQty },
+        metadata: {
+          route: "inventory.physicalCount",
+          warehouseId: input.warehouseId,
+          batchId: input.batchId,
+        },
+      });
+
       return { success: true, previousQty, newQty: input.countedQty };
+    }),
+
+  transferStock: tenantProcedure
+    .use(requirePermissions(PERMISSIONS.INVENTORY_VIEW))
+    .input(
+      z.object({
+        fromWarehouseId: z.number(),
+        toWarehouseId: z.number(),
+        productId: z.number(),
+        quantity: z.number().int().min(1),
+        batchId: z.number().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db || !ctx.tenantId) throw new Error("DB unavailable");
+      const tid = ctx.tenantId;
+
+      // Validate source warehouse has sufficient stock
+      const [srcStock] = await db
+        .select({ quantity: warehouseStock.quantity })
+        .from(warehouseStock)
+        .where(
+          and(
+            eq(warehouseStock.tenantId, tid),
+            eq(warehouseStock.productId, input.productId),
+            eq(warehouseStock.warehouseId, input.fromWarehouseId)
+          )
+        )
+        .limit(1);
+
+      const srcAvailable = srcStock?.quantity ?? 0;
+      if (srcAvailable < input.quantity) {
+        throw new Error(
+          `المخزون في المستودع المصدر غير كافٍ — المطلوب: ${input.quantity}، المتاح: ${srcAvailable}`
+        );
+      }
+
+      await (db as any).transaction(async (tx: any) => {
+        // 1. Deduct from source warehouse
+        if (input.batchId) {
+          // Batch-aware deduction (simplified: reduce from specified batch)
+          await deductWarehouseStock(tx, {
+            tenantId: tid,
+            productId: input.productId,
+            warehouseId: input.fromWarehouseId,
+            quantity: input.quantity,
+          });
+        } else {
+          await addWarehouseStock(tx, {
+            tenantId: tid,
+            productId: input.productId,
+            warehouseId: input.fromWarehouseId,
+            quantity: -input.quantity,
+          });
+        }
+
+        // 2. Add to destination warehouse
+        await addWarehouseStock(tx, {
+          tenantId: tid,
+          productId: input.productId,
+          warehouseId: input.toWarehouseId,
+          quantity: input.quantity,
+        });
+
+        // 3. Record stock adjustment movements
+        // Source adjustment (out)
+        const [srcAdj] = await tx
+          .insert(stockAdjustments)
+          .values({
+            tenantId: tid,
+            productId: input.productId,
+            warehouseId: input.fromWarehouseId,
+            previousQty: srcAvailable,
+            newQty: srcAvailable - input.quantity,
+            reason: " نقل مخزون",
+            notes:
+              input.notes ??
+              `Transfer from WH ${input.fromWarehouseId} to WH ${input.toWarehouseId}`,
+            userId: ctx.user.id,
+          })
+          .returning({ id: stockAdjustments.id });
+
+        // Destination adjustment (in)
+        const [dstAdj] = await tx
+          .insert(stockAdjustments)
+          .values({
+            tenantId: tid,
+            productId: input.productId,
+            warehouseId: input.toWarehouseId,
+            previousQty: 0,
+            newQty: input.quantity,
+            reason: " نقل مخزون",
+            notes:
+              input.notes ??
+              `Transfer from WH ${input.fromWarehouseId} to WH ${input.toWarehouseId}`,
+            userId: ctx.user.id,
+          })
+          .returning({ id: stockAdjustments.id });
+
+        // Record movements
+        await recordStockMovement(tx, {
+          tenantId: tid,
+          productId: input.productId,
+          warehouseId: input.fromWarehouseId,
+          type: "out",
+          quantity: input.quantity,
+          referenceId: srcAdj.id,
+          referenceType: "stock_adjustment",
+          notes: input.notes ?? `Transfer to WH ${input.toWarehouseId}`,
+        });
+
+        await recordStockMovement(tx, {
+          tenantId: tid,
+          productId: input.productId,
+          warehouseId: input.toWarehouseId,
+          type: "in",
+          quantity: input.quantity,
+          referenceId: dstAdj.id,
+          referenceType: "stock_adjustment",
+          notes: input.notes ?? `Transfer from WH ${input.fromWarehouseId}`,
+        });
+      });
+
+      // Audit log
+      await recordAuditEvent(ctx, {
+        action: "TRANSFER_STOCK",
+        resourceType: "product",
+        resourceId: String(input.productId),
+        before: {
+          fromWarehouseId: input.fromWarehouseId,
+          toWarehouseId: input.toWarehouseId,
+          quantity: input.quantity,
+        },
+        after: {
+          fromWarehouseId: input.fromWarehouseId,
+          toWarehouseId: input.toWarehouseId,
+          quantity: input.quantity,
+        },
+        metadata: { route: "inventory.transferStock" },
+      });
+
+      return {
+        success: true,
+        fromWarehouseId: input.fromWarehouseId,
+        toWarehouseId: input.toWarehouseId,
+        productId: input.productId,
+        quantity: input.quantity,
+      };
     }),
 });

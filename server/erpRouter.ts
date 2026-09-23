@@ -1,6 +1,7 @@
 ﻿import { z } from "zod";
 import { getDb } from "./db";
 import { runProactiveAlerts } from "./automation";
+// import { workflowRegistry, createWorkflowMachine } from "@alhusseiniya/workflow-engine"; // TODO: build workflow-engine package
 import { tenantProcedure, adminProcedure, router } from "./_core/trpc";
 import {
   departments,
@@ -28,6 +29,7 @@ import {
   customers,
   users,
   recurringExpenses,
+  budgets,
 } from "../drizzle/schema";
 import {
   eq,
@@ -936,7 +938,8 @@ export const erpRouter = router({
         estimatedCost: z.string().optional(),
         currency: z.string().optional(),
         supplierId: z.number().optional(),
-        // ─── Multi-step approval (Module A) ──────────────────────────
+        // ─── Multi-step approval via Workflow Engine ───────────────────
+        // approvers: list of userIds in sequential order (for backward compat)
         approvers: z.array(z.number().int().positive()).max(10).optional(),
       })
     )
@@ -955,7 +958,110 @@ export const erpRouter = router({
         input.approvers && input.approvers.length
           ? [...new Set(input.approvers)]
           : [];
-      const approvers = approverIds.length ? approverIds : null;
+
+      // ── Budget validation ─────────────────────────────────────────
+      const department = input.departmentId
+        ? await db
+            .select()
+            .from(departments)
+            .where(
+              and(
+                eq(departments.id, input.departmentId),
+                eq(departments.tenantId, tenantId)
+              )
+            )
+            .limit(1)
+        : null;
+      if (department) {
+        const [budget] = await db
+          .select()
+          .from(budgets)
+          .where(
+            and(
+              eq(budgets.tenantId, tenantId),
+              eq(budgets.periodName, "current")
+            )
+          )
+          .limit(1);
+        if (budget) {
+          // Simple check: estimated cost should not exceed remaining budget
+          const totalCommitted = await db
+            .select({
+              total: sql`coalesce(sum(cast("estimatedCost" as decimal)), 0)`,
+            })
+            .from(procurements)
+            .where(
+              and(eq(procurements.tenantId, tenantId), sql`status = 'pending'`)
+            );
+          const used = Number(totalCommitted[0]?.total ?? "0");
+          const budgetAvailable = {
+            targetExpense: Number(budget.targetExpense),
+            used: used,
+            remaining: Number(budget.targetExpense) - used,
+          };
+          if (estimatedCost > budgetAvailable.remaining) {
+            throw new Error(
+              `الميزانية غير كافية — المطلوب: ${estimatedCost}، المتاح: ${budgetAvailable.remaining}`
+            );
+          }
+        }
+      }
+
+      // ── Start workflow engine instance for approval tracking ─────
+      // TODO: Re-enable when @alhusseiniya/workflow-engine package is built
+      // const [def] = await db
+      //   .select()
+      //   .from( /* we'll look up by code later */ )
+      //   .limit(1);
+      // Use the workflow engine's procurement-approval definition
+      // const machine = workflowRegistry.get("procurement-approval") || createWorkflowMachine(procurementApprovalDefinition as any);
+      // const instanceId = crypto.randomUUID();
+      //
+      // const initialContext = {
+      //   instanceId,
+      //   definitionId: "procurement-approval",
+      //   entityType: "procurement",
+      //   entityId: row.id.toString(),
+      //   status: "draft" as const,
+      //   priority: "medium",
+      //   context: {},
+      //   formData: {},
+      //   tasks: [],
+      //   history: [],
+      // };
+      //
+      // // Start the machine
+      // const started = machine.provide({ actions: {} }).start(initialContext);
+      // started.send({ type: "START", payload: { assigneeId: input.approvers?.[0] } });
+      //
+      // const context = started.getSnapshot().context;
+      // // Persist the initial context for crash recovery
+      // await db.insert(workflowInstances).values({
+      //   GlobalId: crypto.randomUUID(),
+      //   tenantId,
+      //   definitionId: "procurement-approval" as any,
+      //   definitionVersion: 1,
+      //   entityType: "procurement",
+      //   entityId: row.id.toString(),
+      //   status: context.status,
+      //   currentStepId: context.currentStepId,
+      //   currentAssigneeId: context.currentAssigneeId,
+      //   currentAssigneeRole: context.currentAssigneeRole,
+      //   priority: context.priority,
+      //   context: context.context,
+      //   metadata: context.metadata,
+      //   startedAt: new Date(),
+      //   updatedAt: new Date(),
+      //   createdById: ctx.user.id,
+      //   updatedById: ctx.user.id,
+      // });
+
+      // Use workflow engine's current assignee as the first approver
+      // const firstAssigneeId = context.currentAssigneeId ?? (approvers?.[0] ?? null);
+      // const effectiveApprovers = firstAssigneeId ? [firstAssigneeId] : approverIds;
+
+      const effectiveApprovers = input.approvers ?? [];
+
       const seq = await nextSequence(db, procurements, tenantId);
       const [row] = await db
         .insert(procurements)
@@ -971,13 +1077,14 @@ export const erpRouter = router({
           estimatedCost: estimatedCost.toString(),
           currency: input.currency ?? "YER",
           supplierId: input.supplierId,
-          approvers,
+          // Sync workflow engine state with homegrown fields
+          approvers: effectiveApprovers,
           approvalStep: 0,
           approvalLog: null,
-          // With an approver chain the requisition awaits sequential sign-off.
-          status: approvers ? "pending" : "draft",
+          status: effectiveApprovers ? "pending" : "draft",
         })
         .returning();
+      // ... rest of the function
       await createNotification(db, {
         tenantId,
         userId: null,
@@ -987,12 +1094,12 @@ export const erpRouter = router({
         type: "requisition",
       });
       // Notify the first approver in the chain (if any).
-      if (approvers && approvers.length > 0) {
+      if (approverIds && approverIds.length > 0) {
         await createNotification(db, {
           tenantId,
-          userId: approvers[0],
+          userId: approverIds[0],
           title: "طلب بانتظار اعتمادك",
-          body: `طلب التوريد ${row.requisitionNumber} بانتظار خطوة الاعتماد 1 من ${approvers.length}`,
+          body: `طلب التوريد ${row.requisitionNumber} بانتظار خطوة الاعتماد 1 من ${approverIds.length}`,
           link: "/requisitions",
           type: "requisition",
         });

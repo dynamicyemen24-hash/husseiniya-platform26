@@ -47,6 +47,7 @@ import { getDb } from "./db";
 import { getTenantConfig } from "./routers";
 import { requireTenantId } from "./_core/tenant";
 import { assertPeriodOpen } from "./services/accountingEngine";
+import { recordAuditEvent } from "./_core/audit";
 
 // Voucher type enum for reference
 const voucherTypeSchema = z.enum([
@@ -484,6 +485,22 @@ export const vouchersRouter = router({
           details: `المبلغ: ${input.amount}`,
         });
 
+        // Audit log
+        await recordAuditEvent(ctx, {
+          action: "VOUCHER_CREATED",
+          resourceType: "voucher",
+          resourceId: String(voucher.id),
+          after: {
+            id: voucher.id,
+            voucherNumber: number,
+            voucherType: input.voucherType,
+            status: "draft",
+            amount: input.amount,
+            voucherDate: input.voucherDate,
+          },
+          metadata: { route: "vouchers.create" },
+        });
+
         return { voucherId: voucher.id, voucherNumber: number };
       });
     }),
@@ -875,6 +892,9 @@ export const vouchersRouter = router({
       }
 
       return await (db as any).transaction(async (tx: any) => {
+        // Capture before state
+        const beforeState = { ...voucher[0] };
+
         // Update voucher
         await tx
           .update(vouchers)
@@ -906,6 +926,24 @@ export const vouchersRouter = router({
           userId: ctx.user.id,
           action: `اعتماد قيد ${voucher[0].voucherNumber} - المستوى ${input.level}`,
           details: input.comments || "",
+        });
+
+        // Audit log
+        await recordAuditEvent(ctx, {
+          action: "VOUCHER_APPROVED",
+          resourceType: "voucher",
+          resourceId: String(input.id),
+          before: {
+            status: beforeState.status,
+            approvalLevel: beforeState.approvalLevel,
+          },
+          after: {
+            status: "approved",
+            approvalLevel: input.level,
+            approvedById: ctx.user.id,
+            approvedAt: new Date().toISOString(),
+          },
+          metadata: { route: "vouchers.approve", level: input.level },
         });
 
         return { success: true };
@@ -1118,6 +1156,26 @@ export const vouchersRouter = router({
           details: `المبلغ: ${voucher[0].amount} - رقم القيد: ${journalEntryId}`,
         });
 
+        // Audit log
+        await recordAuditEvent(ctx, {
+          action: "VOUCHER_POSTED",
+          resourceType: "voucher",
+          resourceId: String(input.id),
+          before: {
+            status: "approved",
+            postedById: null,
+            postingDate: null,
+            journalEntryId: null,
+          },
+          after: {
+            status: "posted",
+            postedById: ctx.user.id,
+            postingDate: new Date().toISOString(),
+            journalEntryId,
+          },
+          metadata: { route: "vouchers.post" },
+        });
+
         return { success: true, journalEntryId };
       });
     }),
@@ -1153,6 +1211,8 @@ export const vouchersRouter = router({
       }
 
       return await (db as any).transaction(async (tx: any) => {
+        const beforeState = { ...voucher[0] };
+
         await tx
           .update(vouchers)
           .set({
@@ -1168,6 +1228,21 @@ export const vouchersRouter = router({
           userId: ctx.user.id,
           action: `إلغاء قيد ${voucher[0].voucherNumber}`,
           details: `السبب: ${input.reason}`,
+        });
+
+        // Audit log
+        await recordAuditEvent(ctx, {
+          action: "VOUCHER_CANCELLED",
+          resourceType: "voucher",
+          resourceId: String(input.id),
+          before: {
+            status: beforeState.status,
+          },
+          after: {
+            status: "cancelled",
+            cancellationReason: input.reason,
+          },
+          metadata: { route: "vouchers.cancel" },
         });
 
         return { success: true };
@@ -1325,6 +1400,24 @@ export const vouchersRouter = router({
           userId: ctx.user.id,
           action: `تعديل معكوس للقيد ${original[0].voucherNumber} → ${number}`,
           details: input.reason || "",
+        });
+
+        // Audit log
+        await recordAuditEvent(ctx, {
+          action: "VOUCHER_REVERSED",
+          resourceType: "voucher",
+          resourceId: String(input.id),
+          before: {
+            status: original[0].status,
+            voucherNumber: original[0].voucherNumber,
+          },
+          after: {
+            reversalId: reversal.id,
+            reversalNumber: number,
+            reversalDate: input.reversalDate,
+            reason: input.reason,
+          },
+          metadata: { route: "vouchers.reverse" },
         });
 
         return {

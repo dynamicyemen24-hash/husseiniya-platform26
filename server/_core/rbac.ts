@@ -71,6 +71,10 @@ export async function resolveUserPermissions(
       "share.resource",
       "batch.operate",
       "mass.assign.protect",
+      "workflow.read",
+      "workflow.write",
+      "workflow.approve",
+      "workflow.admin",
     ],
     admin: [
       "import.data",
@@ -86,10 +90,22 @@ export async function resolveUserPermissions(
       "share.resource",
       "batch.operate",
       "mass.assign.protect",
+      "workflow.read",
+      "workflow.write",
+      "workflow.approve",
+      "workflow.admin",
     ],
-    accountant: ["export.data", "download.report", "approve", "toggle_state"],
-    auditor: ["export.data", "download.report"],
-    user: [],
+    accountant: [
+      "export.data",
+      "download.report",
+      "approve",
+      "toggle_state",
+      "workflow.read",
+      "workflow.write",
+      "workflow.approve",
+    ],
+    auditor: ["export.data", "download.report", "workflow.read"],
+    user: ["workflow.read"],
   };
 
   const implicitlyGranted = new Set(

@@ -11,6 +11,72 @@ env:
   PNPM_VERSION: "10.4.1"
 
 jobs:
+  db-migrate-check:
+    name: DB Migration Check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check migration status
+        id: check
+        run: |
+          if pnpm drizzle-kit check --config=drizzle.config.ts; then
+            echo "drift_detected=false" >> $GITHUB_OUTPUT
+          else
+            echo "drift_detected=true" >> $GITHUB_OUTPUT
+          fi
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
+
+      - name: Generate migration if schema changed
+        id: generate
+        if: steps.check.outputs.drift_detected == 'true'
+        run: |
+          if pnpm drizzle-kit generate --name=ci_${{ github.sha }} --config=drizzle.config.ts; then
+            echo "migration_generated=true" >> $GITHUB_OUTPUT
+          else
+            echo "migration_generated=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
+
+      - name: Upload migration artifact
+        if: steps.generate.outputs.migration_generated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drizzle-migration
+          path: drizzle/migrations/
+          retention-days: 7
+
   lint-and-typecheck:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
@@ -100,10 +166,74 @@ jobs:
           path: coverage/
           retention-days: 7
 
+  integration-tests:
+    name: Integration Tests (Testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run integration tests
+        run: pnpm test:integration
+        env:
+          NODE_ENV: test
+
+      - name: Upload integration coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: coverage-integration/
+          retention-days: 7
+
+  contract-tests:
+    name: tRPC Contract Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run contract tests
+        run: pnpm test:contract
+
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, unit-tests]
+    needs:
+      [
+        lint-and-typecheck,
+        unit-tests,
+        db-migrate-check,
+        integration-tests,
+        contract-tests,
+      ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4

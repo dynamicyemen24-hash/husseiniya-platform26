@@ -22,6 +22,7 @@ import { reportsRouter } from "./reportsRouter";
 import { posIntelligenceRouter } from "./posIntelligenceRouter";
 import type { PosSession } from "../drizzle/schema";
 import type { SessionReport } from "./posSessionReport";
+import { recordAuditEvent } from "./_core/audit";
 
 // Local DB handle type (same inference pattern as webStore.ts)
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -580,6 +581,16 @@ export const modulesRouter = router({
         const db = await getDb();
         if (!db || !ctx.tenantId)
           throw new Error("تعذر الاتصال بقاعدة البيانات");
+
+        // Get user before update for audit
+        const [userBefore] = await db
+          .select({ role: users.role })
+          .from(users)
+          .where(
+            and(eq(users.id, input.userId), eq(users.tenantId, ctx.tenantId))
+          )
+          .limit(1);
+
         const roleValue = input.role || "user";
         await db
           .update(users)
@@ -587,6 +598,17 @@ export const modulesRouter = router({
           .where(
             and(eq(users.id, input.userId), eq(users.tenantId, ctx.tenantId))
           );
+
+        // Audit log
+        await recordAuditEvent(ctx, {
+          action: "ROLE_ASSIGNED",
+          resourceType: "user",
+          resourceId: String(input.userId),
+          before: { role: userBefore?.role ?? "unknown" },
+          after: { role: roleValue },
+          metadata: { route: "modules.assignRole" },
+        });
+
         return { success: true };
       }),
   }),

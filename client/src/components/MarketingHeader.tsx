@@ -14,6 +14,13 @@ import {
   Zap,
   Info,
   Home as HomeIcon,
+  CheckCircle2,
+  Award,
+  Building2,
+  Users,
+  BarChart3,
+  Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import { MessageSquare } from "lucide-react";
 import {
@@ -38,6 +45,7 @@ import {
   type NavItem,
 } from "@/lib/nav";
 import { brand } from "@/lib/brand";
+import { cn } from "@/lib/utils";
 
 interface Props {
   onOpenSettings?: () => void;
