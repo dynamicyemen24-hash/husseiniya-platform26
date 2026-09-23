@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Settings,
   Zap,
-  Info,
   Home as HomeIcon,
   CheckCircle2,
   Award,
@@ -21,6 +20,9 @@ import {
   BarChart3,
   Sparkles,
   ArrowRight,
+  Search,
+  Mail,
+  MapPin,
 } from "lucide-react";
 import { MessageSquare } from "lucide-react";
 import {
@@ -33,7 +35,7 @@ import {
 } from "@/components/icons/HusIcons";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useI18n } from "@/lib/i18n";
-import { BrandLogo } from "@/components/BrandLogo";
+import { BrandLogo, BrandMark } from "@/components/BrandLogo";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import {
   MARKETING_NAV,
@@ -109,6 +111,9 @@ export function MarketingHeader({ onOpenSettings }: Props) {
   const { setLanguage, language } = useI18n();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [openCluster, setOpenCluster] = React.useState<string | null>(null);
+  const [mobileOpenClusters, setMobileOpenClusters] = React.useState<
+    Record<string, boolean>
+  >({});
   const [scrolled, setScrolled] = React.useState(false);
 
   const visibleClusters = DOMAIN_CLUSTERS;
@@ -189,78 +194,66 @@ export function MarketingHeader({ onOpenSettings }: Props) {
 
   return (
     <header className="sticky top-0 z-50 text-ink" dir="rtl">
+      {/* Top Bar — Official Identity */}
       <div
-        className={`hidden lg:flex items-center justify-between px-4 backdrop-blur border-b text-[11px] transition-all duration-300 ${scrolled ? "h-0 overflow-hidden opacity-0 py-0 border-transparent" : "h-7 py-0 opacity-100"} bg-white/80 border-slate-200 text-slate-500`}
+        className={`hidden lg:flex items-center justify-between px-4 backdrop-blur border-b text-[11px] transition-all duration-300 ${
+          scrolled
+            ? "h-0 overflow-hidden opacity-0 py-0 border-transparent"
+            : "h-7 py-0 opacity-100"
+        } bg-white/80 border-slate-200 text-slate-500`}
+        aria-label="معلومات المؤسسة"
       >
-        <span className="flex items-center gap-2.5 tracking-normal">
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-black border bg-slate-900 text-white border-slate-900">
-            {brand.names.siteName}
+        <div className="flex items-center gap-3 tracking-normal">
+          {/* Official Brand Mark in Top Bar */}
+          <BrandLogo size={18} withWordmark={false} onDark={false} />
+          <span className="hidden xl:inline font-medium text-slate-700">
+            {brand.names.siteName} — منذ ٢٠١٨
           </span>
-          <span className="hidden xl:inline font-medium">
-            خدمات أعمال متكاملة — منذ 2018
-          </span>
-        </span>
-        <span className="flex items-center gap-3 font-medium">
+        </div>
+        <div className="flex items-center gap-4 font-medium text-slate-600">
           <a
             href={`tel:${brand.contact.phone}`}
-            className="nav-apex flex items-center gap-1.5 hover:text-slate-900 transition-colors text-[11px]"
+            className="flex items-center gap-1.5 hover:text-slate-900 transition-colors"
+            aria-label="اتصال هاتفي"
           >
-            <Phone className="w-3 h-3 text-slate-400 hus-icon-apex" />
+            <Phone className="w-3.5 h-3.5 text-brand" />
             {brand.contact.phone}
           </a>
-          <span className="w-px h-3 bg-slate-200" />
-          <span className="hidden sm:inline">{brand.contact.address}</span>
-        </span>
+          <span className="w-px h-4 bg-slate-200" />
+          <a
+            href={`mailto:${brand.contact.email}`}
+            className="flex items-center gap-1.5 hover:text-slate-900 transition-colors hidden sm:inline-flex"
+            aria-label="بريد إلكتروني"
+          >
+            <Mail className="w-3.5 h-3.5 text-brand" />
+            {brand.contact.email}
+          </a>
+          <span className="hidden sm:inline-flex items-center gap-1 text-slate-500">
+            <MapPin className="w-3.5 h-3.5 text-brand" />
+            {brand.contact.address}
+          </span>
+        </div>
       </div>
+
+      {/* Main Header — Brand + Navigation + Actions */}
       <div className="header-apex">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between gap-4 h-[56px]">
+          {/* Brand Lockup — Official Identity */}
           <div
             className="flex items-center gap-3 cursor-pointer group/brand shrink-0"
             onClick={() => setLocation("/")}
             role="link"
-            aria-label="الرئيسية"
+            aria-label="الرئيسية — {brand.names.siteName}"
           >
-            <BrandLogo
-              size={32}
-              className="group-hover/brand:scale-105 transition-transform"
-            />
+            <BrandLogo size={32} withWordmark={true} onDark={true} />
           </div>
-          <div className="hidden lg:flex items-center gap-1 pr-3 mr-1 border-r border-slate-200">
-            <button
-              onClick={() =>
-                window.dispatchEvent(new Event("alh:open-command"))
-              }
-              className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[11px] border bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-white"
-            >
-              <HusSearchIcon size={15} className="text-slate-400" />
-              <span
-                className="hidden xl:inline"
-                style={{
-                  fontFamily: '"Tajawal", system-ui, sans-serif',
-                  fontWeight: 700,
-                }}
-              >
-                بحث
-              </span>
-              <span
-                className="hidden xl:inline-flex text-[10px] border rounded px-1 bg-white border-slate-200 text-slate-400"
-                style={{ fontFamily: '"Tajawal", system-ui, sans-serif' }}
-              >
-                ⌘K
-              </span>
-            </button>
-            <ThemeSwitcher compact />
-            <button
-              onClick={() => setLanguage(language === "ar" ? "en" : "ar")}
-              className="flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] text-slate-400 hover:text-slate-900 hover:bg-slate-50"
-            >
-              <Globe className="w-3.5 h-3.5" />
-            </button>
-          </div>
+
+          {/* Desktop Navigation */}
           <nav
-            className="hidden md:flex items-center gap-1"
+            className="hidden lg:flex items-center gap-1 flex-1 justify-center"
             aria-label="التنقل الرئيسي"
           >
+            {/* Direct Navigation: Home + About */}
             {DIRECT_NAV_PATHS.map(p => {
               const item = NAV_BY_PATH.get(p);
               if (!item) return null;
@@ -279,11 +272,15 @@ export function MarketingHeader({ onOpenSettings }: Props) {
                   <Icon className="w-3.5 h-3.5" />
                   {item.label}
                   <span
-                    className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-brand transition-all ${isActive ? "w-2/3" : "w-0 group-hover:w-2/3"}`}
+                    className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-brand transition-all ${
+                      isActive ? "w-2/3" : "w-0 group-hover:w-2/3"
+                    }`}
                   />
                 </Button>
               );
             })}
+
+            {/* Mega-menu Clusters */}
             {visibleClusters.map(cluster => {
               const Icon = cluster.icon;
               const items = cluster.items;
@@ -304,14 +301,19 @@ export function MarketingHeader({ onOpenSettings }: Props) {
                     size="sm"
                     onClick={() => setOpenCluster(isOpen ? null : cluster.key)}
                     aria-expanded={isOpen}
+                    aria-haspopup="true"
                     className={`${baseBtn} ${navClass(containsActive)} group`}
                   >
                     <Icon
-                      className={`w-3.5 h-3.5 ${!containsActive ? "text-slate-400" : "text-brand"}`}
+                      className={`w-3.5 h-3.5 ${
+                        !containsActive ? "text-slate-400" : "text-brand"
+                      }`}
                     />
                     {cluster.label}
                     <ChevronDown
-                      className={`w-3 h-3 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      className={`w-3 h-3 text-slate-400 transition-transform ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
                     />
                   </Button>
                   <AnimatePresence>
@@ -331,22 +333,36 @@ export function MarketingHeader({ onOpenSettings }: Props) {
                               key={item.path}
                               onClick={() => navigateOrScroll(item.path)}
                               aria-current={active ? "page" : undefined}
-                              className={`w-full flex items-start gap-3 rounded-xl px-3 py-2.5 text-right ${active ? "bg-slate-900 text-white" : "hover:bg-slate-50"}`}
+                              className={`w-full flex items-start gap-3 rounded-xl px-3 py-2.5 text-right ${
+                                active
+                                  ? "bg-slate-900 text-white"
+                                  : "hover:bg-slate-50"
+                              }`}
                             >
                               <span
-                                className={`w-9 h-9 rounded-lg border flex items-center justify-center ${active ? "bg-white/10 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-600"}`}
+                                className={`w-9 h-9 rounded-lg border flex items-center justify-center ${
+                                  active
+                                    ? "bg-white/10 border-white/10 text-white"
+                                    : "bg-slate-50 border-slate-200 text-slate-600"
+                                }`}
                               >
                                 <I className="w-4 h-4" />
                               </span>
                               <span className="flex flex-col gap-0.5 text-right">
                                 <span
-                                  className={`text-[13px] font-bold ${active ? "text-white" : "text-slate-900"}`}
+                                  className={`text-[13px] font-bold ${
+                                    active ? "text-white" : "text-slate-900"
+                                  }`}
                                 >
                                   {item.label}
                                 </span>
                                 {item.description && (
                                   <span
-                                    className={`text-[11px] ${active ? "text-white/70" : "text-slate-500"}`}
+                                    className={`text-[11px] ${
+                                      active
+                                        ? "text-white/70"
+                                        : "text-slate-500"
+                                    }`}
                                   >
                                     {item.description}
                                   </span>
@@ -361,61 +377,80 @@ export function MarketingHeader({ onOpenSettings }: Props) {
                 </div>
               );
             })}
-            <button
-              onClick={() => setLocation("/contact")}
-              className="hidden lg:inline-flex h-8 px-3.5 rounded-lg text-[13px] text-slate-600 hover:bg-slate-50"
-            >
-              تواصل
-            </button>
-            {isAuthenticated ? (
-              <Button
-                onClick={() => setLocation("/app")}
-                className="bg-slate-900 hover:bg-black text-white font-bold h-8 px-4 rounded-lg text-[13px]"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                ادخل النظام
-              </Button>
-            ) : (
-              <>
+
+            {/* CTA Buttons */}
+            <div className="flex items-center gap-2 ml-2 pl-2 border-r border-slate-200">
+              {isAuthenticated ? (
                 <Button
-                  variant="ghost"
-                  onClick={() => setLocation("/login")}
-                  className="hidden lg:inline-flex h-8 px-3.5 rounded-lg text-[13px] text-slate-700 hover:bg-slate-50"
+                  onClick={() => setLocation("/app")}
+                  className="bg-brand hover:bg-brandDeep text-white font-bold h-8 px-4 rounded-lg text-[13px] flex items-center gap-1.5"
                 >
-                  دخول النظام
+                  <Zap className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">ادخل النظام</span>
                 </Button>
-                <Button
-                  onClick={() => setLocation("/login")}
-                  className="bg-slate-900 hover:bg-black text-white font-bold h-8 px-4 rounded-lg text-[13px]"
-                >
-                  سجل منشأتك
-                </Button>
-              </>
-            )}
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setLocation("/login")}
+                    className="hidden lg:inline-flex h-8 px-3.5 rounded-lg text-[13px] text-slate-700 hover:bg-slate-50"
+                  >
+                    دخول النظام
+                  </Button>
+                  <Button
+                    onClick={() => setLocation("/login")}
+                    className="bg-brand hover:bg-brandDeep text-white font-bold h-8 px-4 rounded-lg text-[13px] flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">سجل منشأتك</span>
+                  </Button>
+                </>
+              )}
+            </div>
           </nav>
-          <div className="flex items-center gap-1.5">
+
+          {/* Right Actions: Settings + Theme + Language + Mobile Menu */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {onOpenSettings && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onOpenSettings}
-                className="h-8 text-xs px-2.5 hidden sm:flex bg-white border-slate-200 text-slate-600"
+                className="h-8 text-xs px-2.5 hidden sm:flex bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
               >
                 <Settings className="w-3.5 h-3.5" />
                 إعدادات
               </Button>
             )}
+            <ThemeSwitcher compact />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLanguage(language === "ar" ? "en" : "ar")}
+              className="h-8 w-8 p-0 text-slate-400 hover:text-slate-900 hover:bg-slate-50"
+              aria-label={`تبديل اللغة إلى ${language === "ar" ? "English" : "العربية"}`}
+            >
+              <Globe className="w-4 h-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setMobileOpen(!mobileOpen)}
               className="md:hidden p-2 h-9 w-9 text-slate-700"
+              aria-label={mobileOpen ? "إغلاق القائمة" : "فتح القائمة"}
+              aria-expanded={mobileOpen}
             >
-              <Menu className="w-5 h-5" />
+              {mobileOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Mobile Navigation Drawer */}
       <AnimatePresence>
         {mobileOpen && (
           <>
@@ -425,13 +460,19 @@ export function MarketingHeader({ onOpenSettings }: Props) {
               exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
               className="md:hidden fixed inset-0 top-[84px] bg-black/40 backdrop-blur-sm z-40"
+              aria-hidden="true"
             />
             <motion.div
               initial={{ y: -10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -10, opacity: 0 }}
+              transition={{ duration: 0.2 }}
               className="md:hidden absolute inset-x-3 top-full mt-2 rounded-2xl border bg-white border-slate-200 shadow-xl p-3 space-y-3 max-h-[70vh] overflow-y-auto z-50"
+              role="dialog"
+              aria-modal="true"
+              aria-label="قائمة التنقل"
             >
+              {/* Mobile CTA Buttons */}
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
@@ -448,25 +489,94 @@ export function MarketingHeader({ onOpenSettings }: Props) {
                     setLocation("/login");
                     setMobileOpen(false);
                   }}
-                  className="h-9 text-xs bg-slate-900 text-white"
+                  className="h-9 text-xs bg-brand hover:bg-brandDeep text-white"
                 >
                   سجل منشأتك
                 </Button>
               </div>
-              {mobileNav.map(item => {
-                const I = item.icon;
-                const active = location === item.path;
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => navigateOrScroll(item.path)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium ${active ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"}`}
-                  >
-                    <I className="w-4 h-4" />
-                    {item.label}
-                  </button>
-                );
-              })}
+
+              {/* Mobile Nav Items */}
+              <div className="space-y-1 pt-1 border-t border-slate-100">
+                {mobileNav.map(item => {
+                  const I = item.icon;
+                  const active = location === item.path;
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => navigateOrScroll(item.path)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium ${
+                        active
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <I className="w-4 h-4" />
+                      {item.label}
+                    </button>
+                  );
+                })}
+
+                {/* Mobile Cluster Menus */}
+                {visibleClusters.map(cluster => {
+                  const Icon = cluster.icon;
+                  const items = cluster.items;
+                  const isOpen = mobileOpenClusters[cluster.key] ?? false;
+                  const containsActive = items.some(i => location === i.path);
+                  return (
+                    <div
+                      key={cluster.key}
+                      className="border-t border-slate-100 pt-1"
+                    >
+                      <button
+                        onClick={() =>
+                          setMobileOpenClusters(prev => ({
+                            ...prev,
+                            [cluster.key]: !prev[cluster.key],
+                          }))
+                        }
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold ${
+                          containsActive
+                            ? "text-brand"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                        aria-expanded={isOpen}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Icon
+                            className={`w-4 h-4 ${containsActive ? "text-brand" : "text-slate-400"}`}
+                          />
+                          {cluster.label}
+                        </span>
+                        <ChevronDown
+                          className={`w-3 h-3 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                      {isOpen && (
+                        <div className="space-y-1 mt-1 ml-8 pr-2 border-r border-slate-100">
+                          {items.map(item => {
+                            const I = item.icon;
+                            const active = location === item.path;
+                            return (
+                              <button
+                                key={item.path}
+                                onClick={() => navigateOrScroll(item.path)}
+                                className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-[12px] font-medium ${
+                                  active
+                                    ? "bg-brand/10 text-brand"
+                                    : "text-slate-600 hover:bg-slate-50"
+                                }`}
+                              >
+                                <I className="w-3.5 h-3.5" />
+                                {item.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </motion.div>
           </>
         )}
