@@ -85,8 +85,21 @@ export default function Contact() {
       toast.error("يرجى تعبئة الاسم ورقم الهاتف والرسالة");
       return;
     }
+    const composed = [
+      "السلام عليكم مؤسسة الحسينية، نموذج تواصل من الموقع:",
+      "",
+      `الاسم: ${form.name}`,
+      `الهاتف: ${form.phone}`,
+      form.email ? `البريد: ${form.email}` : "",
+      form.service ? `نوع الطلب: ${form.service}` : "",
+      "",
+      form.message,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    window.open(whatsappLink(composed), "_blank", "noopener,noreferrer");
     setSent(true);
-    toast.success("تم استلام رسالتك — سيتواصل معك أحد خبرائنا خلال 24 ساعة");
+    toast.success("تم تجهيز رسالتك — أرسلها في الواتساب ويردّ عليك فريقنا خلال دقائق");
   };
 
   return (
@@ -205,11 +218,11 @@ export default function Contact() {
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                   </div>
                   <h3 className="text-xl font-black text-foreground">
-                    تم إرسال رسالتك بنجاح!
+                    تم تجهيز رسالتك!
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-                    سيتواصل معك أحد خبرائنا خلال 24 ساعة. للرد الفوري تواصل عبر
-                    واتساب.
+                    فُتحت نافذة الواتساب مع رسالتك جاهزة للإرسال — أرسلها ويردّ
+                    عليك أحد خبرائنا خلال دقائق.
                   </p>
                   <a
                     href={whatsappLink(

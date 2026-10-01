@@ -49,6 +49,17 @@
     <meta name="application-name" content="Uamex_erp" />
     <meta name="apple-mobile-web-app-title" content="Uamex_erp" />
     <meta name="format-detection" content="telephone=no" />
+    <!-- Mobile touch optimizations -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
+    <meta name="touch-action" content="manipulation" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Prevent tap highlights on mobile -->
+    <style>
+      * { -webkit-tap-highlight-color: transparent; }
+      body { touch-action: manipulation; -webkit-overflow-scrolling: touch; }
+    </style>
     <!-- Performance: preload assistant identity (high priority, first paint) + self-hosted WOFF2 fonts -->
     <link
       rel="preload"
@@ -195,11 +206,12 @@
         "name": "مؤسسة الحسينية لخدمات الأعمال",
         "alternateName": "alhusainiaye",
         "url": "https://alhusainiaye.vercel.app",
-        "logo": "https://alhusainiaye.vercel.app/favicon.svg",
+        "logo": "https://alhusainiaye.vercel.app/favicon.ico",
         "description": "منصة الحسينية الموحدة — نظام الحسابات المتقدم، الاستشارات الهندسية والتقنية والمؤسسية، خدمات المقاولين والأراضي، المتجر الإلكتروني، الخدمات الطلابية، التصاميم، وصيانة الأجهزة.",
         "address": {
           "@type": "PostalAddress",
-          "streetAddress": "المركز الرئيسي — شارع المؤسسة والمكتبة",
+          "streetAddress": "شارع المدينة الرياضية",
+          "addressLocality": "ذمار",
           "addressCountry": "YE"
         },
         "sameAs": [],
@@ -262,20 +274,21 @@
         aria-live="polite"
         aria-label="جاري التحميل"
       >
-        <!-- Top glowing progress bar -->
-        <div class="alhusainia-top-progress" aria-hidden="true"></div>
+        <div class="alhusainia-splash-card">
+          <div class="alhusainia-progress-ring" aria-hidden="true">
+            <svg viewBox="0 0 64 64" focusable="false">
+              <circle class="alhusainia-progress-track" cx="32" cy="32" r="25" />
+              <circle class="alhusainia-progress-value" cx="32" cy="32" r="25" />
+            </svg>
+          </div>
+        </div>
       </div>
       <style>
         .alhusainia-splash {
           position: fixed;
           inset: 0;
-          background: radial-gradient(
-            circle at 50% 40%,
-            #102627 0%,
-            #091516 100%
-          );
+          background: #0b1d1e;
           display: flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
           font-family:
@@ -287,117 +300,50 @@
           z-index: 9999;
           overflow: hidden;
         }
-        .alhusainia-top-progress {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: linear-gradient(
-            90deg,
-            #b87945,
-            #e2b17a,
-            #38bdf8,
-            #b87945
-          );
-          background-size: 200% 100%;
-          animation: alhusainia-slide 1.5s linear infinite;
-        }
         .alhusainia-splash-card {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          text-align: center;
-          gap: 10px;
-          padding: 32px;
-          border-radius: 28px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          backdrop-filter: blur(12px);
-          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-          max-width: 320px;
-          width: 90%;
+          display: grid;
+          place-items: center;
+          width: 56px;
+          height: 56px;
         }
-        .alhusainia-emblem-wrap {
+        .alhusainia-progress-ring {
           position: relative;
-          margin-bottom: 4px;
-          animation: alhusainia-pulse 2s ease-in-out infinite;
-        }
-        .alhusainia-emblem {
           width: 52px;
           height: 52px;
-          filter: drop-shadow(0 4px 12px rgba(184, 121, 69, 0.25));
         }
-        .alhusainia-splash-title {
-          font-weight: 900;
-          font-size: 16px;
-          color: #ffffff;
-          letter-spacing: -0.2px;
+        .alhusainia-progress-ring svg {
+          display: block;
+          width: 100%;
+          height: 100%;
+          transform: rotate(-90deg);
         }
-        .alhusainia-splash-sub {
-          font-weight: 500;
-          font-size: 11px;
-          color: rgba(255, 255, 255, 0.5);
-          letter-spacing: 0.5px;
-          margin-top: -4px;
+        .alhusainia-progress-track,
+        .alhusainia-progress-value {
+          fill: none;
+          stroke-width: 4;
         }
-        .alhusainia-progress-bar {
-          width: 160px;
-          height: 4px;
-          background: rgba(255, 255, 255, 0.08);
-          border-radius: 99px;
-          overflow: hidden;
-          margin-top: 10px;
-          position: relative;
+        .alhusainia-progress-track {
+          stroke: rgba(255, 255, 255, 0.12);
         }
-        .alhusainia-progress-fill {
-          position: absolute;
-          top: 0;
-          bottom: 0;
-          left: 0;
-          width: 50%;
-          background: linear-gradient(90deg, #b87945, #e2b17a);
-          border-radius: 99px;
-          animation: alhusainia-indeterminate 1.4s
-            cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+        .alhusainia-progress-value {
+          stroke: #d4a574;
+          stroke-linecap: round;
+          stroke-dasharray: 42 158;
+          transform-origin: 32px 32px;
+          animation: alhusainia-ring 1.25s ease-in-out infinite;
         }
-        .alhusainia-splash-status {
-          font-size: 10px;
-          color: #d4a574;
-          font-weight: 600;
-          letter-spacing: 0.3px;
-        }
-        @keyframes alhusainia-slide {
+        @keyframes alhusainia-ring {
           0% {
-            background-position: 100% 0;
+            transform: rotate(0deg);
           }
           100% {
-            background-position: -100% 0;
+            transform: rotate(360deg);
           }
         }
-        @keyframes alhusainia-pulse {
-          0%,
-          100% {
-            transform: scale(1);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.05);
-            opacity: 0.9;
-          }
-        }
-        @keyframes alhusainia-indeterminate {
-          0% {
-            left: -40%;
-            width: 40%;
-          }
-          50% {
-            left: 20%;
-            width: 60%;
-          }
-          100% {
-            left: 100%;
-            width: 40%;
+        @media (prefers-reduced-motion: reduce) {
+          .alhusainia-progress-value {
+            animation: none;
+            stroke-dasharray: 18 182;
           }
         }
       </style>

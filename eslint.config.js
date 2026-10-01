@@ -101,6 +101,13 @@ export default [
   {
     ignores: [
       "dist/**",
+      ".vercel/**",
+      ".manus-logs/**",
+      "build-output.txt",
+      "build-output-*.txt",
+      "output.txt",
+      "check-output.txt",
+      "lint-output.txt",
       "api/**",
       "node_modules/**",
       "client/public/**",

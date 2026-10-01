@@ -151,56 +151,58 @@ export default function Inventory() {
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-8 h-10 bg-card border">
+          <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:overflow-visible sm:px-0">
+          <TabsList className="flex h-11 w-max min-w-full justify-start gap-1 bg-card border sm:grid sm:w-full sm:grid-cols-4 lg:grid-cols-8">
             <TabsTrigger
               value="dashboard"
-              className="text-[10px] flex items-center gap-1"
+              className="min-w-max px-3 text-xs flex items-center gap-1"
             >
               <BarChart3 className="w-3 h-3" /> لوحة المعلومات
             </TabsTrigger>
             <TabsTrigger
               value="overview"
-              className="text-[10px] flex items-center gap-1"
+              className="min-w-max px-3 text-xs flex items-center gap-1"
             >
               <Boxes className="w-3 h-3" /> نظرة عامة
             </TabsTrigger>
             <TabsTrigger
               value="operations"
-              className="text-[10px] flex items-center gap-1"
+              className="min-w-max px-3 text-xs flex items-center gap-1"
             >
               <Package className="w-3 h-3" /> العمليات
             </TabsTrigger>
             <TabsTrigger
               value="reports"
-              className="text-[10px] flex items-center gap-1"
+              className="min-w-max px-3 text-xs flex items-center gap-1"
             >
               <LineChart className="w-3 h-3" /> التقارير
             </TabsTrigger>
             <TabsTrigger
               value="reorder"
-              className="text-[10px] flex items-center gap-1"
+              className="min-w-max px-3 text-xs flex items-center gap-1"
             >
               <AlertTriangle className="w-3 h-3 text-amber-500" /> إعادة الطلب
             </TabsTrigger>
             <TabsTrigger
               value="warehouses"
-              className="text-[10px] flex items-center gap-1"
+              className="min-w-max px-3 text-xs flex items-center gap-1"
             >
               <WhIcon className="w-3 h-3" /> المخازن
             </TabsTrigger>
             <TabsTrigger
               value="valuation"
-              className="text-[10px] flex items-center gap-1"
+              className="min-w-max px-3 text-xs flex items-center gap-1"
             >
               <Calculator className="w-3 h-3" /> التقييم
             </TabsTrigger>
             <TabsTrigger
               value="advanced"
-              className="text-[10px] flex items-center gap-1"
+              className="min-w-max px-3 text-xs flex items-center gap-1"
             >
               <Target className="w-3 h-3" /> تحليل متقدم
             </TabsTrigger>
           </TabsList>
+          </div>
 
           {/* ─── Dashboard ─── */}
           <TabsContent value="dashboard" className="space-y-3">

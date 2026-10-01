@@ -113,6 +113,7 @@ export default defineConfig({
       ".manus-asia.computer",
       ".manuscomputer.ai",
       ".manusvm.computer",
+      ".system.alhusseiniya.com",
       "localhost",
       "127.0.0.1",
     ],

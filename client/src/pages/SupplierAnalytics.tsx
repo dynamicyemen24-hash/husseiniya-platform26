@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowLeft,
@@ -34,99 +34,46 @@ export default function SupplierAnalytics() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("all");
-  const purchasesQ = trpc.purchases.list.useQuery(
-    { limit: 500 },
+  const performanceQ = trpc.purchasesReports.supplierPerformance.useQuery(
+    { from: from || undefined, to: to || undefined },
     { staleTime: 30_000 }
   );
-  const suppliersQ = trpc.suppliers.list.useQuery(
-    { limit: 500 },
-    { staleTime: 30_000 }
-  );
-  const purchases = purchasesQ.data?.items ?? [];
-  const suppliers = useMemo(
-    () => suppliersQ.data?.items ?? [],
-    [suppliersQ.data]
-  );
-  const supplierName = useCallback(
-    (id?: number | null) =>
-      suppliers.find(s => s.id === id)?.name ?? "بدون مورد",
-    [suppliers]
-  );
-  const filtered = purchases.filter(p => {
-    const date = p.createdAt ? new Date(p.createdAt) : null;
-    if (from && date && date < new Date(from)) return false;
-    if (to && date && date > new Date(`${to}T23:59:59`)) return false;
-    if (supplierFilter !== "all" && String(p.supplierId) !== supplierFilter)
-      return false;
-    return p.status !== "cancelled";
-  });
+  const supplierOptions = performanceQ.data?.suppliers ?? [];
   const analysis = useMemo(() => {
-    const bySupplier = new Map<
-      number | string,
-      {
-        name: string;
-        invoices: number;
-        spend: number;
-        paid: number;
-        outstanding: number;
-        lastDate: Date | null;
-      }
-    >();
-    filtered.forEach(p => {
-      const key = p.supplierId ?? "none";
-      const current = bySupplier.get(key) ?? {
-        name: supplierName(p.supplierId),
-        invoices: 0,
-        spend: 0,
-        paid: 0,
-        outstanding: 0,
-        lastDate: null,
-      };
-      const spend = Number(p.total || 0);
-      const paid = Number(p.paidAmount || 0);
-      current.invoices += 1;
-      current.spend += spend;
-      current.paid += paid;
-      current.outstanding += Math.max(0, spend - paid);
-      const date = p.createdAt ? new Date(p.createdAt) : null;
-      if (date && (!current.lastDate || date > current.lastDate))
-        current.lastDate = date;
-      bySupplier.set(key, current);
-    });
-    const byMonth = new Map<
-      string,
-      { label: string; spend: number; invoices: number }
-    >();
-    filtered.forEach(p => {
-      const date = p.createdAt ? new Date(p.createdAt) : new Date();
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      const row = byMonth.get(key) ?? {
-        label: monthLabel(date),
-        spend: 0,
-        invoices: 0,
-      };
-      row.spend += Number(p.total || 0);
-      row.invoices += 1;
-      byMonth.set(key, row);
-    });
-    const months = Array.from(byMonth.values()).slice(-12);
-    const suppliersRows = Array.from(bySupplier.values()).sort(
-      (a, b) => b.spend - a.spend
-    );
-    const totalSpend = filtered.reduce((s, p) => s + Number(p.total || 0), 0);
-    const totalPaid = filtered.reduce(
-      (s, p) => s + Number(p.paidAmount || 0),
-      0
-    );
+    const report = performanceQ.data;
+    const matchesSupplier = (id: number | null) =>
+      supplierFilter === "all" || String(id ?? "none") === supplierFilter;
+    const suppliersRows = (report?.suppliers ?? [])
+      .filter(row => matchesSupplier(row.supplierId))
+      .sort((a, b) => b.spend - a.spend);
+    const months = (report?.months ?? [])
+      .filter(row => matchesSupplier(row.supplierId))
+      .reduce((byMonth, row) => {
+        const month = byMonth.get(row.month) ?? {
+          label: monthLabel(new Date(`${row.month}-01T00:00:00`)),
+          spend: 0,
+          invoices: 0,
+        };
+        month.spend += row.spend;
+        month.invoices += row.invoices;
+        byMonth.set(row.month, month);
+        return byMonth;
+      }, new Map<string, { label: string; spend: number; invoices: number }>())
+      .values();
+    const monthRows = Array.from(months).slice(-12);
+    const totalSpend = suppliersRows.reduce((sum, row) => sum + row.spend, 0);
+    const totalPaid = suppliersRows.reduce((sum, row) => sum + row.paid, 0);
+    const invoiceCount = suppliersRows.reduce((sum, row) => sum + row.invoices, 0);
     return {
       suppliersRows,
-      months,
+      months: monthRows,
       totalSpend,
       totalPaid,
       outstanding: Math.max(0, totalSpend - totalPaid),
-      averageInvoice: filtered.length ? totalSpend / filtered.length : 0,
+      invoiceCount,
+      averageInvoice: invoiceCount ? totalSpend / invoiceCount : 0,
     };
-  }, [filtered, supplierName]);
+  }, [performanceQ.data, supplierFilter]);
   const maxMonth = Math.max(...analysis.months.map(m => m.spend), 1);
   const exportCsv = () => {
     const rows = [
@@ -222,8 +169,11 @@ export default function SupplierAnalytics() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">كل الموردين</SelectItem>
-                  {suppliers.map(s => (
-                    <SelectItem key={s.id} value={String(s.id)}>
+                  {supplierOptions.map(s => (
+                    <SelectItem
+                      key={s.supplierId ?? "none"}
+                      value={String(s.supplierId ?? "none")}
+                    >
                       {s.name}
                     </SelectItem>
                   ))}
@@ -237,8 +187,7 @@ export default function SupplierAnalytics() {
                 setFrom("");
                 setTo("");
                 setSupplierFilter("all");
-                purchasesQ.refetch();
-                suppliersQ.refetch();
+                performanceQ.refetch();
               }}
             >
               <RefreshCw className="ml-2 h-3.5 w-3.5" /> إعادة ضبط
@@ -351,7 +300,7 @@ export default function SupplierAnalytics() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">بطاقة أداء الموردين</CardTitle>
-              <Badge variant="outline">{filtered.length} فاتورة محللة</Badge>
+              <Badge variant="outline">{analysis.invoiceCount} فاتورة محللة</Badge>
             </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">

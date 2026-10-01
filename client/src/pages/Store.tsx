@@ -665,7 +665,7 @@ export default function Store() {
                       invoiceDate: new Date().toISOString(),
                       customerName: "عميل المتجر الإلكتروني",
                       customerPhone: lastPhone,
-                      institutionName: "مؤسسة الحسينية لخدمات الأعمال",
+                      institutionName: "اسم المنشأة",
                       currency: "ريال يمني (YER)",
                       items: [
                         {

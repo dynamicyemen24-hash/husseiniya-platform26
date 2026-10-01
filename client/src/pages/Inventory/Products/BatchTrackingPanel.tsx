@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { ProductPicker } from "@/components/ProductPicker";
 
 const formatNum = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("en-US").format(Math.round(Number(n || 0) * 100) / 100);
@@ -73,8 +74,10 @@ interface BatchItem {
 
 export function BatchTrackingPanel() {
   const { data: warehouses } = trpc.warehouses.list.useQuery();
-  const { data: productsData } = trpc.products.list.useQuery({ limit: 500 });
+  const { data: productsData } = trpc.products.list.useQuery({ limit: 100 });
   const products = productsData?.items ?? [];
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
+  const [pickedProduct, setPickedProduct] = useState<ProductItem | null>(null);
 
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
     null
@@ -292,21 +295,33 @@ export function BatchTrackingPanel() {
 
           <div className="flex flex-col sm:flex-row gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <Select
-                value={selectedProductId?.toString() || ""}
-                onValueChange={v => setSelectedProductId(v ? Number(v) : null)}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 min-w-[200px] justify-between text-xs"
+                onClick={() => setProductPickerOpen(true)}
               >
-                <SelectTrigger className="h-9 text-xs w-[200px]">
-                  <SelectValue placeholder="فلترة بالصنف" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map(p => (
-                    <SelectItem key={p.id} value={p.id.toString()}>
-                      {p.code} - {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {pickedProduct?.id === selectedProductId
+                  ? `${pickedProduct.code} - ${pickedProduct.name}`
+                  : products.find(p => p.id === selectedProductId)
+                    ? `${products.find(p => p.id === selectedProductId)?.code} - ${products.find(p => p.id === selectedProductId)?.name}`
+                    : "فلترة بالصنف"}
+                <Search className="h-3.5 w-3.5" />
+              </Button>
+              {selectedProductId != null && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-9 text-xs"
+                  onClick={() => {
+                    setSelectedProductId(null);
+                    setPickedProduct(null);
+                  }}
+                >
+                  إلغاء التصفية
+                </Button>
+              )}
               <Select
                 value={daysAhead.toString()}
                 onValueChange={v => setDaysAhead(Number(v))}
@@ -684,6 +699,15 @@ export function BatchTrackingPanel() {
           </form>
         </DialogContent>
       </Dialog>
+      <ProductPicker
+        open={productPickerOpen}
+        onOpenChange={setProductPickerOpen}
+        typeFilter="goods"
+        onSelect={product => {
+          setPickedProduct(product);
+          setSelectedProductId(product.id);
+        }}
+      />
     </div>
   );
 }

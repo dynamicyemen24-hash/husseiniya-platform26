@@ -13,11 +13,11 @@ const nextConfig = {
     return [
       {
         source: "/app/:path*",
-        destination: `${process.env.NEXT_PUBLIC_SYSTEM_URL || "https://app.alhusseiniya.com"}/app/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_SYSTEM_URL || "https://system.alhusseiniya.com"}/app/:path*`,
       },
       {
         source: "/api/trpc/:path*",
-        destination: `${process.env.NEXT_PUBLIC_SYSTEM_URL || "https://app.alhusseiniya.com"}/api/trpc/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_SYSTEM_URL || "https://system.alhusseiniya.com"}/api/trpc/:path*`,
       },
     ];
   },

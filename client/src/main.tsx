@@ -137,6 +137,46 @@ const trpcClient = trpc.createClient({
 // والخطوط الثانوية تُؤجَّل حتى idle — مع بديل CSS فقط عند حظر FontFace.
 initFontLoading();
 
+// ─── Performance Observer Integration ──────────────────
+import { observePerformanceMetrics } from "@/lib/performanceBudget";
+
+if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+  setTimeout(() => {
+    observePerformanceMetrics(metrics => {
+      import("@sentry/react").then(Sentry => {
+        Sentry.addBreadcrumb({
+          category: "performance",
+          level: "info",
+          data: metrics,
+        });
+      });
+    });
+  }, 2000);
+}
+
+// ─── Offline Mutation Queue ────────────────────────────
+// Service worker background sync for offline mutations
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    await navigator.serviceWorker.ready;
+    // Register background sync for offline mutations
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg && "sync" in reg && (reg as any).sync) {
+        await (reg as any).sync.register("sync-mutations");
+      }
+      // Register periodic sync for critical data
+      if (reg && "periodicSync" in reg) {
+        await (reg as any).periodicSync.register("periodic-data-sync", {
+          minInterval: 15 * 60 * 1000,
+        });
+      }
+    } catch {
+      // Background sync not supported
+    }
+  });
+}
+
 createRoot(document.getElementById("root")!).render(
   <I18nProvider>
     <MotionConfig reducedMotion="user">

@@ -9,7 +9,10 @@ import viteConfig from "../../vite.config";
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server },
+    // The embedded development preview can evaluate React modules before the
+    // refresh preamble. Keep the middleware server deterministic; production
+    // builds are unaffected by this development-only setting.
+    hmr: false,
     allowedHosts: true as const,
   };
 

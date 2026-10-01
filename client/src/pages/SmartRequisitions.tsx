@@ -5,14 +5,13 @@
 import * as React from "react";
 import { SmartCombobox } from "@/components/ui/smartCombobox";
 import { StatusStrip } from "@/components/ui/loading";
-import { generateDocNumber } from "@shared/autoNumber";
-import { useCustomerSearch, useProductSearch } from "@/hooks/useSmartSearch";
+import { useCustomerSearch, useProductSearch, useDocumentNumber } from "@/hooks/useSmartSearch";
 import { formatCurrency } from "@shared/autoComplete";
+import { trpc } from "@/lib/trpc";
 import {
   GlassCard,
   GlassBadge,
   EmptyRequisitions,
-  EmptySearch,
   LoadingSpinner,
   SmartHelp,
   AnimatedCard,
@@ -25,20 +24,34 @@ import {
   Check,
   Clock,
   Search,
-  ArrowUpRight,
   Users,
   Package,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 export default function SmartRequisitions() {
-  const [docNumber] = React.useState(() =>
-    generateDocNumber("requisitions", 1)
-  );
   const [customerQuery, setCustomerQuery] = React.useState("");
   const [productQuery, setProductQuery] = React.useState("");
   const customerSearch = useCustomerSearch(customerQuery);
   const productSearch = useProductSearch(productQuery);
+  const docNumberQuery = useDocumentNumber("requisitions");
+  const docNumber = docNumberQuery.data?.number ?? "REQ-…";
+
+  const utils = trpc.useUtils();
+
+  const createProcurement = trpc.erp.createProcurement.useMutation({
+    onSuccess: () => {
+      toast.success("تم إرسال الطلب بنجاح للموافقة");
+      utils.erp.getProcurementKpis.refetch();
+      utils.erp.listProcurements.refetch();
+      setRows([{ id: String(Date.now()), product: "", qty: 1, unitPrice: 0, total: 0 }]);
+      setSelectedCustomer("");
+      setEmployeeName("");
+      docNumberQuery.refetch();
+    },
+    onError: err => toast.error(err.message),
+  });
 
   const customerOptions = React.useMemo(
     () =>
@@ -61,6 +74,7 @@ export default function SmartRequisitions() {
   );
 
   const [selectedCustomer, setSelectedCustomer] = React.useState("");
+  const [employeeName, setEmployeeName] = React.useState("");
   const [rows, setRows] = React.useState([
     { id: "1", product: "", qty: 1, unitPrice: 0, total: 0 },
   ]);
@@ -74,6 +88,28 @@ export default function SmartRequisitions() {
 
   const grandTotal = rows.reduce((sum, r) => sum + r.total, 0);
   const isLoading = customerSearch.isLoading || productSearch.isLoading;
+
+  const submit = () => {
+    const noMarketRows = rows.filter(r => r.product.trim() !== "");
+    if (noMarketRows.length === 0) {
+      toast.error("أضف منتجاً واحداً على الأقل قبل الإرسال");
+      return;
+    }
+    if (!selectedCustomer) {
+      toast.error("اختر الزبون قبل الإرسال");
+      return;
+    }
+    createProcurement.mutate({
+      itemName: noMarketRows.length === 1 ? noMarketRows[0].product : `طلب شامل (${noMarketRows.length} منتجات)`,
+      description: `${employeeName ? `مقدم الطلب: ${employeeName} — ` : ""}${noMarketRows
+        .map(r => `${r.product} × ${r.qty}`)
+        .join("، ")}`,
+      quantity: String(noMarketRows.reduce((s, r) => s + r.qty, 0)),
+      estimatedCost: String(grandTotal),
+      currency: "YER",
+      supplierId: selectedCustomer ? Number(selectedCustomer) : undefined,
+    });
+  };
 
   return (
     <motion.div
@@ -119,9 +155,13 @@ export default function SmartRequisitions() {
               description="اضغط لإرسال طلب المستلزمات للموافقة"
             >
               <TooltipTrigger>
-                <button className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-600">
+                <button
+                  onClick={submit}
+                  disabled={createProcurement.isPending}
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-600 disabled:opacity-50"
+                >
                   <Check className="size-4" />
-                  إرسال
+                  {createProcurement.isPending ? "جارِ الإرسال…" : "إرسال"}
                 </button>
               </TooltipTrigger>
               <TooltipContent
@@ -179,7 +219,7 @@ export default function SmartRequisitions() {
             الإجمالي
           </label>
           <p className="text-lg font-bold text-neutral-900 mt-1">
-            {isLoading ? "..." : formatCurrency(grandTotal)}
+            {formatCurrency(grandTotal)}
           </p>
         </GlassCard>
       </motion.div>
@@ -193,7 +233,7 @@ export default function SmartRequisitions() {
       >
         <GlassCard padding="p-4">
           <label className="block text-sm font-medium text-neutral-700 mb-1">
-            الزبون
+            الزبون / المورد
           </label>
           <SmartCombobox
             options={customerOptions}
@@ -224,6 +264,8 @@ export default function SmartRequisitions() {
           >
             <TooltipTrigger>
               <input
+                value={employeeName}
+                onChange={e => setEmployeeName(e.target.value)}
                 placeholder="اسم الموظف..."
                 className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
               />
@@ -316,40 +358,28 @@ export default function SmartRequisitions() {
                         />
                       </td>
                       <td className="p-3 text-center">
-                        {isLoading ? (
-                          <LoadingSpinner size="sm" label="" />
-                        ) : (
-                          <input
-                            type="number"
-                            value={row.qty}
-                            min={1}
-                            onChange={e => {
-                              const qty = Math.max(1, Number(e.target.value));
-                              setRows(prev =>
-                                prev.map(r =>
-                                  r.id === row.id
-                                    ? { ...r, qty, total: qty * r.unitPrice }
-                                    : r
-                                )
-                              );
-                            }}
-                            className="w-16 rounded border border-neutral-300 px-2 py-1 text-center text-sm"
-                          />
-                        )}
+                        <input
+                          type="number"
+                          value={row.qty}
+                          min={1}
+                          onChange={e => {
+                            const qty = Math.max(1, Number(e.target.value));
+                            setRows(prev =>
+                              prev.map(r =>
+                                r.id === row.id
+                                  ? { ...r, qty, total: qty * r.unitPrice }
+                                  : r
+                              )
+                            );
+                          }}
+                          className="w-16 rounded border border-neutral-300 px-2 py-1 text-center text-sm"
+                        />
                       </td>
                       <td className="p-3 text-right font-mono text-sm">
-                        {isLoading ? (
-                          <LoadingSpinner size="sm" label="" />
-                        ) : (
-                          formatCurrency(row.unitPrice)
-                        )}
+                        {formatCurrency(row.unitPrice)}
                       </td>
                       <td className="p-3 text-right font-mono font-bold text-sm">
-                        {isLoading ? (
-                          <LoadingSpinner size="sm" label="" />
-                        ) : (
-                          formatCurrency(row.total)
-                        )}
+                        {formatCurrency(row.total)}
                       </td>
                     </tr>
                   ))}
@@ -394,9 +424,13 @@ export default function SmartRequisitions() {
         <button className="rounded-lg border border-neutral-300 px-6 py-2.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50">
           حفظ كمسودة
         </button>
-        <button className="inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-600">
+        <button
+          onClick={submit}
+          disabled={createProcurement.isPending}
+          className="inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-600 disabled:opacity-50"
+        >
           <Check className="size-4" />
-          إرسال الطلب
+          {createProcurement.isPending ? "جارِ الإرسال…" : "إرسال الطلب"}
         </button>
       </motion.div>
     </motion.div>

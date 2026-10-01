@@ -27,6 +27,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ProductPicker } from "@/components/ProductPicker";
 
 const formatNum = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("en-US", {
@@ -57,12 +58,17 @@ interface ProductItem {
 
 export function InventoryValuationPanel() {
   const { data: warehouses } = trpc.warehouses.list.useQuery();
-  const { data: productsData } = trpc.products.list.useQuery({ limit: 500 });
+  const { data: productsData } = trpc.products.list.useQuery({ limit: 100 });
   const products = productsData?.items ?? [];
-
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
+  const [pickedProduct, setPickedProduct] = useState<ProductItem | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(
     null
   );
+  const displayedProduct =
+    pickedProduct?.id === selectedProductId
+      ? pickedProduct
+      : products.find(product => product.id === selectedProductId) ?? null;
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
     null
   );
@@ -152,23 +158,17 @@ export function InventoryValuationPanel() {
         <>
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="flex items-center gap-3 flex-wrap">
-              <Select
-                value={selectedProductId?.toString() || ""}
-                onValueChange={v => setSelectedProductId(v ? Number(v) : null)}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 w-[300px] justify-between text-xs"
+                onClick={() => setProductPickerOpen(true)}
               >
-                <SelectTrigger className="h-9 text-xs w-[300px]">
-                  <SelectValue placeholder="اختر صنفاً" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products
-                    .filter(p => p.type === "goods")
-                    .map(p => (
-                      <SelectItem key={p.id} value={p.id.toString()}>
-                        {p.code} - {p.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+                {displayedProduct
+                  ? `${displayedProduct.code} - ${displayedProduct.name}`
+                  : "اختر صنفاً"}
+                <Search className="h-3.5 w-3.5" />
+              </Button>
               <Select
                 value={selectedWarehouseId?.toString() || ""}
                 onValueChange={v =>
@@ -722,6 +722,15 @@ export function InventoryValuationPanel() {
           </div>
         </>
       )}
+      <ProductPicker
+        open={productPickerOpen}
+        onOpenChange={setProductPickerOpen}
+        typeFilter="goods"
+        onSelect={product => {
+          setPickedProduct(product);
+          setSelectedProductId(product.id);
+        }}
+      />
     </div>
   );
 }

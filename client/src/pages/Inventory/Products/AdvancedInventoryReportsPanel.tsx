@@ -69,7 +69,7 @@ interface InventoryMovementItem {
 
 export function AdvancedInventoryReportsPanel() {
   const { data: warehouses } = trpc.warehouses.list.useQuery();
-  const { data: productsData } = trpc.products.list.useQuery({ limit: 1000 });
+  const { data: productsData } = trpc.products.list.useQuery({ limit: 100 });
   const products = useMemo(() => productsData?.items ?? [], [productsData]);
   const { data: inventoryMovements } = trpc.products.movements.useQuery(
     {},
@@ -381,6 +381,14 @@ export function AdvancedInventoryReportsPanel() {
 
   return (
     <div className="space-y-4">
+      {productsData && productsData.total > products.length && (
+        <div
+          role="status"
+          className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground"
+        >
+          المؤشرات أدناه مبنية على أول {products.length} صنفاً من أصل {productsData.total.toLocaleString("ar-EG")} صنف.
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-ink">

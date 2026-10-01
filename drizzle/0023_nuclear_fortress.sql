@@ -51,9 +51,153 @@ CREATE UNIQUE INDEX IF NOT EXISTS "uq_idempotency_keys_tenant_key"
 CREATE INDEX IF NOT EXISTS "idx_idempotency_keys_expires"
   ON "idempotency_keys" ("expiresAt");
 
---> statement-breakpoint
+ --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_idempotency_keys_tenant_created"
   ON "idempotency_keys" ("tenantId", "createdAt" DESC);
+
+-- ── (ي) World-class document engine — idempotent + RLS ───────────
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "intermediary_parties" (
+  "id" serial PRIMARY KEY,
+  "tenantId" integer NOT NULL REFERENCES "tenants" ("id"),
+  "partyRole" varchar(20) NOT NULL,
+  "partyType" varchar(20) NOT NULL DEFAULT 'person',
+  "code" varchar(50),
+  "name" varchar(255) NOT NULL,
+  "nameAr" varchar(255),
+  "email" varchar(255),
+  "phone" varchar(50),
+  "commissionValue" decimal(15,2) NOT NULL DEFAULT '0',
+  "creditLimit" decimal(15,2) NOT NULL DEFAULT '0',
+  "currentBalance" decimal(15,2) NOT NULL DEFAULT '0',
+  "status" varchar(20) NOT NULL DEFAULT 'active',
+  "isActive" boolean NOT NULL DEFAULT true,
+  "createdAt" timestamp NOT NULL DEFAULT now(),
+  "updatedAt" timestamp NOT NULL DEFAULT now()
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_intermediaryParties_code_tenant"
+  ON "intermediary_parties" ("code", "tenantId");
+--> statement-breakpoint
+ALTER TABLE "intermediary_parties" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_intermediaryParties_tenant_id"
+  ON "intermediary_parties" ("tenantId", "id");
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "document_party_links" (
+  "id" serial PRIMARY KEY,
+  "GlobalId" uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  "tenantId" integer NOT NULL REFERENCES "tenants" ("id"),
+  "partyId" integer NOT NULL REFERENCES "intermediary_parties" ("id"),
+  "sourceType" varchar(20) NOT NULL,
+  "sourceId" integer NOT NULL,
+  "role" varchar(50) NOT NULL,
+  "notes" text,
+  "createdAt" timestamp NOT NULL DEFAULT now(),
+  "serverVersion" integer NOT NULL DEFAULT 1
+);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_docPartyLinks_tenant"
+  ON "document_party_links" ("tenantId");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_docPartyLinks_source"
+  ON "document_party_links" ("sourceType", "sourceId");
+--> statement-breakpoint
+ALTER TABLE "document_party_links" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "document_expenses" (
+  "id" serial PRIMARY KEY,
+  "tenantId" integer NOT NULL REFERENCES "tenants" ("id"),
+  "documentType" varchar(50) NOT NULL,
+  "documentId" integer NOT NULL,
+  "category" varchar(20) NOT NULL,
+  "amount" decimal(15,2) NOT NULL,
+  "currency" varchar(10) NOT NULL DEFAULT 'YER',
+  "exchangeRate" decimal(18,8) NOT NULL DEFAULT '1',
+  "isIncludedInTotal" boolean NOT NULL DEFAULT true,
+  "status" varchar(20) NOT NULL DEFAULT 'pending',
+  "createdAt" timestamp NOT NULL DEFAULT now()
+);
+--> statement-breakpoint
+ALTER TABLE "document_expenses" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_docExpenses_tenant_document"
+  ON "document_expenses" ("tenantId", "documentType", "documentId");
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "promotions" (
+  "id" serial PRIMARY KEY,
+  "GlobalId" uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  "tenantId" integer NOT NULL REFERENCES "tenants" ("id"),
+  "code" varchar(50),
+  "name" varchar(255) NOT NULL,
+  "nameAr" varchar(255),
+  "type" varchar(20) NOT NULL,
+  "status" varchar(20) NOT NULL DEFAULT 'draft',
+  "value" decimal(15,4),
+  "minQuantity" integer NOT NULL DEFAULT 0,
+  "maxQuantity" integer,
+  "productIds" text,
+  "categoryIds" text,
+  "startDate" timestamp NOT NULL,
+  "endDate" timestamp NOT NULL,
+  "applicableTo" varchar(20) NOT NULL DEFAULT 'all',
+  "partyId" integer REFERENCES "intermediary_parties" ("id"),
+  "maxUses" integer,
+  "currentUses" integer NOT NULL DEFAULT 0,
+  "stackable" boolean NOT NULL DEFAULT false,
+  "notes" text,
+  "isActive" boolean NOT NULL DEFAULT true,
+  "createdAt" timestamp NOT NULL DEFAULT now(),
+  "updatedAt" timestamp NOT NULL DEFAULT now()
+);
+--> statement-breakpoint
+ALTER TABLE "promotions" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "approval_queues" (
+  "id" serial PRIMARY KEY,
+  "tenantId" integer NOT NULL REFERENCES "tenants" ("id"),
+  "documentType" varchar(50) NOT NULL,
+  "documentId" integer NOT NULL,
+  "action" varchar(50) NOT NULL,
+  "priority" varchar(20) NOT NULL DEFAULT 'normal',
+  "status" varchar(20) NOT NULL DEFAULT 'pending',
+  "requestedById" integer,
+  "createdAt" timestamp NOT NULL DEFAULT now()
+);
+--> statement-breakpoint
+ALTER TABLE "approval_queues" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_approvalQueues_status" ON "approval_queues" ("status");
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "line_item_history" (
+  "id" serial PRIMARY KEY,
+  "tenantId" integer NOT NULL REFERENCES "tenants" ("id"),
+  "documentType" varchar(50) NOT NULL,
+  "documentId" integer NOT NULL,
+  "action" varchar(20) NOT NULL,
+  "performedBy" integer,
+  "performedAt" timestamp NOT NULL DEFAULT now()
+);
+--> statement-breakpoint
+ALTER TABLE "line_item_history" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "flexible_line_items" (
+  "id" serial PRIMARY KEY,
+  "tenantId" integer NOT NULL REFERENCES "tenants" ("id"),
+  "documentType" varchar(50) NOT NULL,
+  "documentId" integer NOT NULL,
+  "lineOrder" integer NOT NULL DEFAULT 0,
+  "quantity" decimal(15,4) NOT NULL DEFAULT '0',
+  "unitPrice" decimal(15,4) NOT NULL DEFAULT '0',
+  "total" decimal(15,2) NOT NULL DEFAULT '0',
+  "status" varchar(20) NOT NULL DEFAULT 'pending',
+  "createdAt" timestamp NOT NULL DEFAULT now()
+);
+--> statement-breakpoint
+ALTER TABLE "flexible_line_items" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_flexibleLines_document"
+  ON "flexible_line_items" ("documentType", "documentId");
 
 --> statement-breakpoint
 -- ── (أ) Row-Level Security: ENABLE + tenant_isolation policy ─────────
@@ -68,9 +212,11 @@ BEGIN
     'accounts', 'branches', 'transactions', 'journal_entries',
     'products', 'warehouses', 'warehouse_stock', 'stock_movements',
     'stock_adjustments', 'warehouse_transfers', 'customers', 'suppliers',
-    'sales_invoices', 'purchase_invoices', 'orders', 'payments',
-    'billing_invoices', 'payment_history', 'vouchers', 'voucher_lines',
-    'idempotency_keys'
+     'sales_invoices', 'purchase_invoices', 'orders', 'payments',
+     'billing_invoices', 'payment_history', 'vouchers', 'voucher_lines',
+     'idempotency_keys', 'intermediary_parties',
+     'document_party_links', 'document_expenses', 'promotions',
+     'approval_queues', 'line_item_history', 'flexible_line_items'
   ] LOOP
     BEGIN
       rt := to_regclass(format('public.%I', t));

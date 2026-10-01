@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { goToMarketing } from "@/lib/deploymentLinks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,7 @@ import {
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { SiteFooter } from "@/components/SiteFooter";
-import { BrandLogo } from "@/components/BrandLogo";
+import { ProductLogo } from "@/components/BrandLogo";
 import { brand, whatsappLink } from "@/lib/brand";
 
 const CURRENCIES = [
@@ -192,13 +193,13 @@ export default function Login() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div
             className="flex items-center gap-3 cursor-pointer"
-            onClick={() => setLocation("/")}
+            onClick={goToMarketing}
           >
-            <BrandLogo size={38} />
+            <ProductLogo size={38} />
           </div>
           <Button
             variant="outline"
-            onClick={() => setLocation("/")}
+            onClick={goToMarketing}
             className="border-white/15 text-white/80 hover:text-white bg-white/5 text-xs h-8 px-3 rounded-lg flex items-center gap-1"
           >
             <span>العودة للموقع الرئيسي</span>
@@ -219,16 +220,16 @@ export default function Login() {
               height={16}
               className="rounded-[4px]"
             />
-            بوابة نظام Uamex_erp ERP الموحدة
+            تسجيل الدخول إلى {brand.names.erpDisplay}
           </div>
           <h2 className="text-2xl sm:text-4xl font-black font-display text-white leading-tight">
-            منظومة الأعمال المتكاملة
+            أعمالك، مترابطة في مساحة واحدة
             <br />
             <span className="text-brand-300">المهيأة لبيئة عملك الحقيقية</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-light">
-            سواء كنت تسجل لأول مرة أو تدخل لمتابعة أعمالك، يوفر لك Uamex_erp
-            شجرة حسابات مهيأة، مخازن مضبوطة، وتقارير فورية تدعم اتخاذ قراراتك.
+            تابع المبيعات والمشتريات والمخزون والمالية من مساحة عمل واحدة، بإعدادات
+            تناسب منشأتك وصلاحيات واضحة لفريقك.
           </p>
 
           <div className="space-y-3 pt-2 text-xs text-slate-200">
@@ -238,10 +239,10 @@ export default function Login() {
               </div>
               <div>
                 <span className="font-bold block text-white">
-                  فترة تجريبية مجانية 14 يوماً
+                  ابدأ بفترة تجريبية
                 </span>
                 <span className="text-[11px] text-slate-400">
-                  وصول كامل لجميع الوحدات المحاسبية والمخزنية دون أي شروط
+                  استكشف بيئة العمل قبل اختيار الخطة المناسبة لمنشأتك.
                 </span>
               </div>
             </div>
@@ -251,10 +252,10 @@ export default function Login() {
               </div>
               <div>
                 <span className="font-bold block text-white">
-                  تهيئة ذكية وتلقائية للبيانات
+                  إعداد يناسب نشاطك
                 </span>
                 <span className="text-[11px] text-slate-400">
-                  توليد شجرة الحسابات والسياسات المالية المناسبة لقطاع نشاطك
+                  ابدأ ببيانات مؤسستك، ثم اضبط الحسابات والسياسات بحسب احتياجك.
                 </span>
               </div>
             </div>

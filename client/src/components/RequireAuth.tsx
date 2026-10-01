@@ -3,7 +3,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { goLogin } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BrandMark } from "@/components/BrandLogo";
+import { ProductLogo } from "@/components/BrandLogo";
+import { brand } from "@/lib/brand";
 import {
   Building2,
   Lock,
@@ -36,7 +37,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
         dir="rtl"
       >
         <div className="text-center space-y-3">
-          <BrandMark size={56} className="rounded-2xl shadow-lg mx-auto" />
+          <ProductLogo size={56} className="justify-center" />
           <p className="text-xs text-slate-400 font-bold">
             جاري التحقق من الجلسة…
           </p>
@@ -100,10 +101,10 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <h1 className="text-xl font-bold font-display">
-              ALHUSAINIA | منطقة مشغّلين محمية
+              مساحة عمل {brand.names.erpDisplay}
             </h1>
             <p className="text-sm text-slate-400 mt-1">
-              مؤسسة الحسينية لخدمات الأعمال
+              سجّل الدخول إلى حساب منشأتك لمتابعة عملياتها.
             </p>
           </div>
 

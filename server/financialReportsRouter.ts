@@ -130,6 +130,55 @@ async function accountBalances(
   }));
 }
 
+/**
+ * Aggregate posted, non-reversed ledger activity into revenue and expense
+ * actuals (double-entry sign-aware) for a tenant within an optional window.
+ * - Revenue accounts: credit movements increase revenue.
+ * - Expense accounts: debit movements increase expense.
+ */
+async function actualRevenueExpense(
+  db: Db,
+  tenantId: number,
+  from?: Date,
+  to?: Date
+): Promise<{ revenue: number; expense: number; count: number }> {
+  const acctRows = (await db
+    .select({ id: accounts.id, type: accounts.type })
+    .from(accounts)
+    .where(eq(accounts.tenantId, tenantId))) as unknown as {
+    id: number;
+    type: string;
+  }[];
+  const acctType = new Map(acctRows.map(a => [a.id, a.type]));
+
+  const conditions: any[] = [
+    eq(transactions.tenantId, tenantId),
+    eq(transactions.isReversed, false),
+    inArray(transactions.lifecycleStatus, ACTIVE_LIFECYCLE),
+  ];
+  if (from) conditions.push(gte(transactions.transactionDate, from));
+  if (to) conditions.push(lte(transactions.transactionDate, to));
+
+  const txRows = await db.select().from(transactions).where(and(...conditions));
+
+  let revenue = 0;
+  let expense = 0;
+  let count = 0;
+  for (const tx of txRows) {
+    const type = acctType.get(tx.accountId);
+    if (!type) continue;
+    const v = toNum(tx.amount);
+    if (type === "revenue") {
+      revenue += tx.type === "credit" ? v : -v;
+      count++;
+    } else if (type === "expense") {
+      expense += tx.type === "debit" ? v : -v;
+      count++;
+    }
+  }
+  return { revenue, expense, count };
+}
+
 export const financialReportsRouter = router({
   /** ميزان المراجعة — trial balance (with optional prior-period comparison) */
   trialBalance: tenantProcedure
@@ -928,5 +977,178 @@ export const financialReportsRouter = router({
         .sort((a, b) => b.net - a.net);
 
       return { rows, unassigned };
+    }),
+
+  /**
+   * ملخص ضريبة القيمة المضافة — VAT reconciliation (output vs input tax).
+   * Professional-grade statutory view: sums the invoice-declared output tax
+   * on sales and input tax on purchases, grouped by rate for the selected
+   * period, and nets them into the payable/refundable position.
+   */
+  vatSummary: tenantProcedure
+    .input(
+      z
+        .object({ from: z.string().optional(), to: z.string().optional() })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db)
+        return {
+          output: [],
+          input: [],
+          totals: { outputTax: 0, inputTax: 0, netPayable: 0 },
+        };
+      const tid = requireTenantId(ctx);
+
+      const dateCond = (col: any) =>
+        [
+          ...(input?.from ? [gte(col, new Date(input.from))] : []),
+          ...(input?.to ? [lte(col, new Date(input.to))] : []),
+        ];
+      const activeStatuses = [
+        "confirmed",
+        "paid",
+        "partial",
+      ] as ("confirmed" | "paid" | "partial")[];
+
+      const [salesRows, purchaseRows] = await Promise.all([
+        db
+          .select({
+            invoiceNumber: salesInvoices.invoiceNumber,
+            invoiceDate: salesInvoices.invoiceDate,
+            taxRate: salesInvoices.taxRate,
+            subtotal: salesInvoices.subtotal,
+            taxAmount: salesInvoices.taxAmount,
+          })
+          .from(salesInvoices)
+          .where(
+            and(
+              eq(salesInvoices.tenantId, tid),
+              inArray(salesInvoices.status, activeStatuses),
+              ...dateCond(salesInvoices.invoiceDate)
+            )
+          ),
+        db
+          .select({
+            invoiceNumber: purchaseInvoices.invoiceNumber,
+            invoiceDate: purchaseInvoices.invoiceDate,
+            taxRate: purchaseInvoices.taxRate,
+            subtotal: purchaseInvoices.subtotal,
+            taxAmount: purchaseInvoices.taxAmount,
+          })
+          .from(purchaseInvoices)
+          .where(
+            and(
+              eq(purchaseInvoices.tenantId, tid),
+              inArray(purchaseInvoices.status, activeStatuses),
+              ...dateCond(purchaseInvoices.invoiceDate)
+            )
+          ),
+      ]);
+
+      const rateKey = (r: string | number | null) =>
+        `rate_${toNum(r).toFixed(2)}`;
+
+      const aggregate = (
+        rows: typeof salesRows
+      ): { rate: number; base: number; tax: number; count: number }[] => {
+        const groups = new Map<string, any>();
+        for (const r of rows) {
+          const k = rateKey(r.taxRate);
+          const g = groups.get(k) ?? {
+            rate: toNum(r.taxRate),
+            base: 0,
+            tax: 0,
+            count: 0,
+          };
+          g.base += toNum(r.subtotal);
+          g.tax += toNum(r.taxAmount);
+          g.count += 1;
+          groups.set(k, g);
+        }
+        return [...groups.values()].sort((a, b) => a.rate - b.rate);
+      };
+
+      const output = aggregate(salesRows);
+      const inputRows = aggregate(purchaseRows);
+      const outputTax = output.reduce((s, g) => s + g.tax, 0);
+      const inputTax = inputRows.reduce((s, g) => s + g.tax, 0);
+
+      return {
+        output,
+        input: inputRows,
+        totals: { outputTax, inputTax, netPayable: outputTax - inputTax },
+      };
+    }),
+
+  /**
+   * مقارنة الموازنة بالفعلي — Budget vs Actual variance report.
+   * Uses the configured budgets (targetRevenue/targetExpense) and reckons the
+   * actuals from posted ledger transactions on revenue/expense accounts within
+   * the requested range, reporting absolute + percentage variance per budget.
+   */
+  budgetVariance: tenantProcedure
+    .input(
+      z
+        .object({
+          periodName: z.string().optional(),
+          from: z.string().optional(),
+          to: z.string().optional(),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db)
+        return { rows: [], summary: { revenue: 0, expense: 0, count: 0 } };
+      const tid = requireTenantId(ctx);
+
+      const budgetWhere = [eq(budgets.tenantId, tid)];
+      if (input?.periodName)
+        budgetWhere.push(eq(budgets.periodName, input.periodName));
+      const budgetRows = await db
+        .select()
+        .from(budgets)
+        .where(and(...budgetWhere))
+        .orderBy(budgets.id);
+
+      const actual = await actualRevenueExpense(
+        db,
+        tid,
+        input?.from ? new Date(input.from) : undefined,
+        input?.to ? new Date(input.to) : undefined
+      );
+
+      const rows = budgetRows.map(b => {
+        const targetRevenue = toNum(b.targetRevenue);
+        const targetExpense = toNum(b.targetExpense);
+        const revenueVariance = actual.revenue - targetRevenue;
+        const expenseVariance = actual.expense - targetExpense;
+        return {
+          id: b.id,
+          periodName: b.periodName,
+          targetRevenue,
+          targetExpense,
+          actualRevenue: actual.revenue,
+          actualExpense: actual.expense,
+          revenueVariance,
+          expenseVariance,
+          revenueVariancePct: targetRevenue
+            ? (revenueVariance / targetRevenue) * 100
+            : 0,
+          expenseVariancePct: targetExpense
+            ? (expenseVariance / targetExpense) * 100
+            : 0,
+          status:
+            revenueVariance >= 0 && expenseVariance <= 0
+              ? "under_budget"
+              : revenueVariance < 0 && expenseVariance <= 0
+                ? "revenue_shortfall"
+                : "over_budget",
+        };
+      });
+
+      return { rows, summary: actual };
     }),
 });

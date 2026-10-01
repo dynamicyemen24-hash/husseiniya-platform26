@@ -3,10 +3,134 @@
 
 @custom-variant dark (&:is(.dark *));
 /* ────────────────────────────────────────────────────────────
-   Self-hosted fonts (WOFF2 subsets from Fontsource CDN)
-   Arabic + Latin ranges split via unicode-range so the browser
-   downloads only the glyph set actually rendered.
+   Enterprise Glassmorphism & Executive Theme System
    ──────────────────────────────────────────────────────────── */
+:root {
+  --background: #091516;
+  --foreground: #f0ebe3;
+  --card: rgba(16, 38, 39, 0.75);
+  --card-foreground: #ffffff;
+  --popover: rgba(16, 38, 39, 0.95);
+  --popover-foreground: #ffffff;
+  --primary: #b87945;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #f0ebe3;
+  --muted: rgba(255, 255, 255, 0.04);
+  --muted-foreground: rgba(240, 235, 227, 0.6);
+  --accent: rgba(184, 121, 69, 0.15);
+  --accent-foreground: #e2b17a;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.06);
+  --ring: #b87945;
+  --radius: 0.875rem;
+}
+
+/* ────────────────────────────────────────────────────────────
+   Enterprise Typography Contrast & Workspace Hierarchy
+   ──────────────────────────────────────────────────────────── */
+.workspace-title {
+  color: #ffffff;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.screen-header {
+  background: linear-gradient(135deg, rgba(184, 121, 69, 0.12) 0%, rgba(16, 38, 39, 0.8) 100%);
+  border: 1px solid rgba(184, 121, 69, 0.25);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.form-field-label {
+  color: #e2b17a;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: 0.01em;
+}
+
+.btn-enterprise {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: linear-gradient(135deg, #b87945 0%, #965d31 100%);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 14px rgba(184, 121, 69, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-enterprise:hover {
+  background: linear-gradient(135deg, #c78650 0%, #b87945 100%);
+  box-shadow: 0 6px 20px rgba(184, 121, 69, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-enterprise:active {
+  transform: translateY(0);
+}
+
+.glass-panel-enterprise {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius);
+}
+
+.glass-card-enterprise {
+  background: rgba(16, 38, 39, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card-enterprise:hover {
+  border-color: rgba(184, 121, 69, 0.4);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 20px rgba(184, 121, 69, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Touch & Mobile Optimizations */
+* {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: "Tajawal", system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(184, 121, 69, 0.5);
+}
 /* Tajawal — Arabic subset */
 /* ── Apex Light 200/300 — يمنح الهيرو رقّة فاخرة غير مستهلكة ── */
 @font-face {
@@ -289,9 +413,9 @@
 }
 
 :root {
-  --primary: #0e2a2b;
-  --primary-foreground: #f8f5ef;
-  --sidebar-primary: #0e2a2b;
+  --primary: #9a6334;
+  --primary-foreground: #ffffff;
+  --sidebar-primary: #9a6334;
   --sidebar-primary-foreground: #f8f5ef;
   --chart-1: #b87945;
   --chart-2: #0e2a2b;
@@ -299,22 +423,22 @@
   --chart-4: #eee6d6;
   --chart-5: #8b6b3d;
   --radius: 0.75rem;
-  --background: #ffffff;
+  --background: #f6f7f9;
   --foreground: #0e2a2b;
   --card: #ffffff;
   --card-foreground: #0e2a2b;
   --popover: #ffffff;
   --popover-foreground: #0e2a2b;
-  --secondary: #fafafa;
+  --secondary: #f1f3f5;
   --secondary-foreground: #0e2a2b;
-  --muted: #fafafa;
-  --muted-foreground: #6b7280;
-  --accent: #fafafa;
+  --muted: #f1f3f5;
+  --muted-foreground: #596579;
+  --accent: #f3e9df;
   --accent-foreground: #0e2a2b;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e5e5e5;
-  --input: #e5e5e5;
+  --border: #e1e5ea;
+  --input: #d7dde5;
   --ring: #b87945;
 
   /* ── ALHUSAINIA brand scale (Heritage Ledger) ── */
@@ -344,11 +468,11 @@
   --info: #1d6f8f;
   --font-display: "Tajawal", system-ui, sans-serif;
   --font-body: "Tajawal", system-ui, sans-serif;
-  --sidebar: #fbf8f2;
-  --sidebar-foreground: #102a2b;
-  --sidebar-accent: #eee6d6;
-  --sidebar-accent-foreground: #102a2b;
-  --sidebar-border: #e5dfd5;
+  --sidebar: #0e2023;
+  --sidebar-foreground: #f3f5f6;
+  --sidebar-accent: #1a3337;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #b87945;
 }
 .dark {
@@ -3981,6 +4105,204 @@ html[data-theme="ocean"] {
   background: var(--card);
   box-shadow: var(--shadow-modern-medium);
   padding: 1rem;
+}
+
+/* Shared workspace design language: quiet surfaces, clear hierarchy, and
+   predictable interaction states across every operational screen. */
+:root {
+  --surface-raised: #ffffff;
+  --surface-sunken: #f1f3f5;
+  --surface-overlay: rgba(255, 255, 255, 0.92);
+  --shadow-surface: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.045);
+  --shadow-floating: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--ring) 28%, transparent);
+}
+
+.dark,
+html[data-theme="midnight"],
+html[data-theme="emerald"] {
+  --surface-raised: var(--card);
+  --surface-sunken: color-mix(in srgb, var(--background) 72%, var(--card));
+  --surface-overlay: color-mix(in srgb, var(--card) 94%, transparent);
+  --shadow-surface: 0 1px 2px rgba(0, 0, 0, 0.18),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-floating: 0 16px 36px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme="rose"],
+html[data-theme="ocean"] {
+  --surface-raised: #ffffff;
+  --surface-sunken: color-mix(in srgb, var(--background) 72%, var(--card));
+  --surface-overlay: rgba(255, 255, 255, 0.94);
+  --shadow-surface: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.045);
+}
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+  background-color: var(--background);
+  color: var(--foreground);
+  line-height: 1.55;
+}
+
+::selection {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+:where(button, input, select, textarea, a, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+:where(button, input, select, textarea) {
+  font: inherit;
+}
+
+:where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  min-height: 2.625rem;
+  border-color: var(--input);
+  border-radius: 0.625rem;
+  background-color: var(--surface-raised);
+  color: var(--foreground);
+  transition: border-color 160ms ease, box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+:where(input, select, textarea)::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.78;
+}
+
+:where(input, select, textarea):focus {
+  border-color: var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+:where(button, [role="button"]) {
+  transition: color 160ms ease, background-color 160ms ease,
+    border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+}
+
+tr:last-child > td {
+  border-bottom-color: transparent;
+}
+
+.app-workspace {
+  background:
+    radial-gradient(ellipse at 82% 0%, color-mix(in srgb, var(--primary) 4%, transparent), transparent 35rem),
+    var(--background);
+  padding-block: clamp(1rem, 2vw, 1.75rem);
+}
+
+.screen-header {
+  padding: clamp(1rem, 2.2vw, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-surface);
+}
+
+.workspace-title {
+  color: var(--foreground);
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  text-shadow: none;
+}
+
+.form-field-label {
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.glass-panel-enterprise,
+.glass-card-enterprise {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-surface);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.glass-card-enterprise:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  box-shadow: var(--shadow-floating);
+  transform: translateY(-1px);
+}
+
+.btn-enterprise {
+  min-height: 2.625rem;
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
+  background: var(--primary);
+  box-shadow: none;
+  color: var(--primary-foreground);
+  font-weight: 700;
+}
+
+.btn-enterprise:hover {
+  background: color-mix(in srgb, var(--primary) 88%, var(--foreground));
+  box-shadow: var(--shadow-surface);
+  transform: translateY(-1px);
+}
+
+.app-workspace :where(.rounded-3xl) {
+  border-radius: 1rem;
+}
+
+@media (max-width: 640px) {
+  .app-workspace {
+    padding-inline: 0.875rem;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  .screen-header {
+    border-radius: 0.875rem;
+  }
+
+  :where(button, [role="button"]) {
+    min-height: 2.5rem;
+  }
+}
+
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ── Scrollbar Styling ── */

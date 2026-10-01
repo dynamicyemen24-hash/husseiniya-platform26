@@ -77,9 +77,9 @@ export default function About() {
 
   // Vision, Mission & Values
   const vision =
-    "أن نكون الشريك الاستراتيجي الأمثل للمؤسسات العربية في التحول الرقمي، مقدمي حلول محاسبية وهندسية وتقنية مبتكرة تجمع بين الدقة العالمية وبين الفهم العميق للبيئة المحلية.";
+    "أن تكون الحسينية جهة يعتمد عليها الأفراد والمنشآت للحصول على خدمات مهنية واضحة ومناسبة لاحتياجهم.";
   const mission =
-    "تمكين المؤسسات من النمو والازدهار منصة موحّدة واحدة تدير فيها حساباتها، مشاريعها الهندسية، ومواردها التجارية بكل مرونة وأمان وشفافية، لتكون الشريك الموثوق في رحلة النجاح المؤسسي.";
+    "فهم متطلبات العميل، وتحديد نطاق الخدمة ومخرجاتها بوضوح، وتقديم الخبرة المهنية والحلول الرقمية الملائمة.";
   const values = [
     {
       ar: "التميز",
@@ -384,12 +384,12 @@ export default function About() {
         <div className="max-w-6xl mx-auto text-center relative z-10 space-y-5">
           <div className="inline-flex items-center gap-2 bg-ink-600 border border-brand/40 text-brand-300 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow">
             <HardHat className="w-3.5 h-3.5 text-brand" />
-            الخبراء المعتمدون للخدمات الهندسية، المقاولات، الأراضي، والمكتبية
+            خدمات أعمال واستشارات وهندسة وخدمات معرفية
           </div>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-black font-display tracking-tight leading-tight">
-            مؤسسة الحسينية لخدمات الأعمال <br className="hidden sm:inline" />
-            <span className="text-brand-300">ومكتبة الحسينية الحديثة</span>
+            الحسينية لخدمات الأعمال <br className="hidden sm:inline" />
+            <span className="text-brand-300">خبرة مهنية وحلول عملية</span>
           </h1>
 
           <p className="max-w-3xl mx-auto text-xs sm:text-base text-slate-300 leading-relaxed font-light">
@@ -406,16 +406,16 @@ export default function About() {
               className="bg-brand hover:bg-brand-deep hover:text-sand text-ink-deep font-bold text-xs sm:text-sm h-11 px-6 shadow-lg rounded-xl flex items-center gap-2"
             >
               <HardHat className="w-4 h-4" />
-              طلب خدمة هندسية للمقاولين والأراضي
+              اطلب استشارة هندسية
             </Button>
 
             <Button
-              onClick={() => setLocation("/app")}
+              onClick={() => document.getElementById("business-services")?.scrollIntoView({ behavior: "smooth" })}
               variant="outline"
               className="border-ink-500 bg-ink-600 text-white hover:bg-ink-500 text-xs sm:text-sm h-11 px-5 rounded-xl flex items-center gap-2"
             >
               <ShoppingCart className="w-4 h-4 text-brand-300" />
-              كتالوج الخدمات والمنتجات
+              استكشف خدماتنا
             </Button>
           </div>
 
@@ -441,19 +441,18 @@ export default function About() {
       {/* ── رسالة الشركة القوية + الرؤية والرسالة ── */}
       <section className="bg-white border-y border-slate-200 py-10 px-4">
         <div className="max-w-7xl mx-auto space-y-8">
-          {/* رسالة قوية عن الشركة */}
+          {/* Company identity and service scope; product branding appears on product surfaces. */}
           <div className="max-w-3xl mx-auto text-center space-y-3">
             <Badge className="bg-slate-900 text-white font-black text-xs px-3 py-1">
               من نحن — الحسينية لخدمات الأعمال
             </Badge>
             <h2 className="text-2xl sm:text-3xl font-black text-ink leading-tight">
-              شريكك الاستراتيجي للنمو — من الفكرة إلى الأثر
+              خبرة عملية تبدأ من فهم احتياجك
             </h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              مؤسسة الحسينية لخدمات الأعمال ومركز الحسينية المعرفي — منظومة
-              واحدة تدير حساباتك، مشاريعك الهندسية ومواردك التجارية بمرونة وأمان
-              وشفافية. نحن لا نبيع برامجا، نحن نبني حوكمة تضعك أمام حقيقة واحدة
-              قابلة للتدقيق كل صباح.
+              تقدم الحسينية لخدمات الأعمال استشارات وخدمات هندسية ومعرفية، إلى جانب
+              حلول رقمية مستقلة مثل Uamex ERP. لكل خدمة نطاق ومخرجات واضحة، ويُحدّد
+              العمل مع العميل بحسب متطلباته.
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
@@ -496,7 +495,7 @@ export default function About() {
       </section>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-12 space-y-16">
+      <main id="business-services" className="max-w-7xl mx-auto px-4 py-12 space-y-16 scroll-mt-24">
         {/* ─── SECTION 1: جناح الخدمات الهندسية المتقدمة (للمقاولين وأصحاب الأراضي) ─── */}
         <section className="space-y-8">
           <div className="flex flex-col md:flex-row items-start md:items-end justify-between border-b border-slate-200 pb-4 gap-4">
@@ -980,8 +979,7 @@ export default function About() {
                     العنوان والمقر:
                   </span>
                   <span>
-                    المركز الرئيسي — شارع المؤسسة والمكتبة، الفرع الهندسي
-                    والتخصصي
+                    المركز الرئيسي — اليمن، ذمار، شارع المدينة الرياضية
                   </span>
                 </div>
               </div>

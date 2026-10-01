@@ -32,7 +32,7 @@ export default function PrivacyPolicy() {
           <p>
             سياسة الخصوصية هذه تشرح كيف تجمع {brand.names.legal} (
             {brand.contact.email}) وتستخدم وتكشف المعلومات التي تقدمها عند
-            استخدام موقعنا ومنصتنا ({brand.promise}).
+            استخدام موقعنا وخدماتنا الرقمية، ومنها نظام {brand.names.erpDisplay}.
           </p>
 
           <h2 className="text-xl font-semibold mb-4">المعلومات التي نجمعها</h2>

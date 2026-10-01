@@ -2,78 +2,81 @@
  * خريطة عناوين كل صفحة — تُحدَّث document.title عند التنقل (تحسين SEO + UX):
  * الزائر يعرف أين هو، والألسنة التاريخية تصبح قابلة للقراءة والعودة إليها.
  *
- * العلامة الموحدة مأخوذة من نظام الهوية المركزي (brand.ts) — "الحسينية".
+ * صفحات التعريف تحمل اسم الشركة؛ صفحات العمل تحمل اسم المنتج.
  */
 import { brand } from "@/lib/brand";
 
 /** العلامة الأساسية — العربية أولاً، متسقة مع brand.ts (وليس رومنة ثابتة). */
-const BRAND = brand.names.arabic;
+const COMPANY = brand.names.siteName;
+const PRODUCT = brand.names.erpDisplay;
+const appTitle = (title: string) => `${title} | ${PRODUCT}`;
 
 /** العنوان الافتراضي للصفحة الرئيسية — استعلام مباشر من أي مكان. */
-export const DEFAULT_PAGE_TITLE = `${BRAND} — منصة الحوكمة والأعمال الموحدة`;
+export const DEFAULT_PAGE_TITLE = `${COMPANY} — ${brand.tagline}`;
 
 export const PAGE_TITLES: Record<string, string> = {
   // ── الصفحات العامة (الزائر) ──
   "/": DEFAULT_PAGE_TITLE,
-  "/login": `تسجيل الدخول | ${BRAND}`,
-  "/about": `التعريف بالخدمات | ${BRAND}`,
-  "/portal": `بوابة تتبع الطلبات | ${BRAND}`,
-  "/download": `تحميل تطبيق ${BRAND} | ${BRAND}`,
-  "/pricing": `الأسعار والباقات | ${BRAND}`,
-  "/contact": `تواصل معنا | ${BRAND}`,
-  "/insights": `مركز المعرفة | ${BRAND}`,
-  "/tools": `حاسبات ذكية | ${BRAND}`,
-  "/solutions": `الحلول البرمجية | ${BRAND}`,
-  "/governance": `حوكمة المشاريع | ${BRAND}`,
-  "/integrate": `مركز التكامل | ${BRAND}`,
-  "/privacy-policy": `سياسة الخصوصية | ${BRAND}`,
-  "/terms-of-service": `الشروط والأحكام | ${BRAND}`,
+  "/login": appTitle("تسجيل الدخول"),
+  "/about": `التعريف بالخدمات | ${COMPANY}`,
+  "/portal": `بوابة تتبع الطلبات | ${COMPANY}`,
+  "/download": `تحميل تطبيق ${PRODUCT} | ${COMPANY}`,
+  "/pricing": `الأسعار والباقات | ${PRODUCT}`,
+  "/contact": `تواصل معنا | ${COMPANY}`,
+  "/insights": `مركز المعرفة | ${COMPANY}`,
+  "/tools": `حاسبات ذكية | ${COMPANY}`,
+  "/solutions": `الحلول البرمجية | ${COMPANY}`,
+  "/governance": `حوكمة المشاريع | ${COMPANY}`,
+  "/integrate": `مركز التكامل | ${PRODUCT}`,
+  "/privacy-policy": `سياسة الخصوصية | ${COMPANY}`,
+  "/terms-of-service": `الشروط والأحكام | ${COMPANY}`,
 
   // ── الصفحات التشغيلية (المشترك) ──
-  "/app": `لوحة التحكم | ${BRAND}`,
-  "/accounting": `النظام المحاسبي | ${BRAND}`,
-  "/commercial": `العمليات التجارية | ${BRAND}`,
-  "/reports": `التقارير المالية | ${BRAND}`,
-  "/settings": `إعدادات المؤسسة | ${BRAND}`,
-  "/erp": `نظام ${brand.names.erp} | ${BRAND}`,
-  "/inventory": `إدارة المخزون | ${BRAND}`,
-  "/store": `المتجر الإلكتروني | ${BRAND}`,
-  "/security": `الأمان والصلاحيات | ${BRAND}`,
-  "/procurement-workspace": `مساحة المشتريات | ${BRAND}`,
-  "/supplier-analytics": `تحليل الموردين | ${BRAND}`,
-  "/procurement": `المشتريات التنفيذية | ${BRAND}`,
-  "/projects": `إدارة المشاريع | ${BRAND}`,
-  "/hr": `الموارد البشرية | ${BRAND}`,
-  "/support": `الدعم والجودة | ${BRAND}`,
-  "/pos": `نقاط البيع | ${BRAND}`,
-  "/permissions": `الصلاحيات | ${BRAND}`,
-  "/basic-data": `البيانات الأساسية | ${BRAND}`,
-  "/journal": `القيود المحاسبية | ${BRAND}`,
-  "/manual-journal": `قيد يدوي ذكي | ${BRAND}`,
-  "/customization": `التخصيص والحقول | ${BRAND}`,
-  "/branches": `الفروع والصلاحيات | ${BRAND}`,
-  "/audit": `سجل التدقيق | ${BRAND}`,
-  "/requisitions": `طلبات التوريد | ${BRAND}`,
-  "/operations": `لوحة العمليات | ${BRAND}`,
-  "/analytics": `التحليلات الذكية | ${BRAND}`,
-  "/billing": `الاشتراك والفوترة | ${BRAND}`,
-  "/onboarding": `تهيئة المشترك | ${BRAND}`,
-  "/cost-centers": `مراكز التكلفة | ${BRAND}`,
-  "/zatca": `الفوترة الإلكترونية (ZATCA) | ${BRAND}`,
-  "/beneficiaries": `السجل الموحد للعملاء والمستفيدين | ${BRAND}`,
-  "/financial-statements": `القوائم المالية | ${BRAND}`,
-  "/fiscal-periods": `الفترات المالية والإقفال | ${BRAND}`,
+  "/app": appTitle("لوحة العمل"),
+  "/accounting": appTitle("النظام المحاسبي"),
+  "/commercial": appTitle("العمليات التجارية"),
+  "/reports": appTitle("التقارير المالية"),
+  "/settings": appTitle("إعدادات المؤسسة"),
+  "/erp": appTitle("مساحة العمل"),
+  "/inventory": appTitle("إدارة المخزون"),
+  "/store": appTitle("المتجر الإلكتروني"),
+  "/security": appTitle("الأمان والصلاحيات"),
+  "/procurement-workspace": appTitle("مساحة المشتريات"),
+  "/supplier-analytics": appTitle("تحليل الموردين"),
+  "/procurement": appTitle("المشتريات"),
+  "/projects": appTitle("إدارة المشاريع"),
+  "/hr": appTitle("الموارد البشرية"),
+  "/support": appTitle("الدعم والجودة"),
+  "/pos": appTitle("نقاط البيع"),
+  "/permissions": appTitle("الصلاحيات"),
+  "/basic-data": appTitle("البيانات الأساسية"),
+  "/journal": appTitle("القيود المحاسبية"),
+  "/manual-journal": appTitle("القيد اليدوي"),
+  "/customization": appTitle("التخصيص والحقول"),
+  "/branches": appTitle("الفروع والصلاحيات"),
+  "/audit": appTitle("سجل التدقيق"),
+  "/requisitions": appTitle("طلبات التوريد"),
+  "/operations": appTitle("لوحة العمليات"),
+  "/analytics": appTitle("التحليلات"),
+  "/billing": appTitle("الاشتراك والفوترة"),
+  "/onboarding": appTitle("تهيئة المؤسسة"),
+  "/cost-centers": appTitle("مراكز التكلفة"),
+  "/zatca": appTitle("الفوترة الإلكترونية (ZATCA)"),
+  "/beneficiaries": appTitle("العملاء والمستفيدون"),
+  "/financial-statements": appTitle("القوائم المالية"),
+  "/statements": appTitle("الدفاتر والكشوف"),
+  "/fiscal-periods": appTitle("الفترات المالية والإقفال"),
 
   // ── حالات الخطأ ──
-  "/404": `الصفحة غير موجودة | ${BRAND}`,
+  "/404": `الصفحة غير موجودة | ${COMPANY}`,
 };
 
 /** المسارات الديناميكية الفرعية (مثل /commercial/invoice/create) — بادئة → عنوان. */
 const DYNAMIC_PREFIXES: ReadonlyArray<readonly [string, string]> = [
-  ["/commercial/invoice/", `إنشاء فاتورة | ${BRAND}`],
-  ["/commercial/", `العمليات التجارية | ${BRAND}`],
-  ["/erp/", `نظام ${brand.names.erp} | ${BRAND}`],
-  ["/pos/", `نقاط البيع | ${BRAND}`],
+  ["/commercial/invoice/", appTitle("إنشاء فاتورة")],
+  ["/commercial/", appTitle("العمليات التجارية")],
+  ["/erp/", appTitle("مساحة العمل")],
+  ["/pos/", appTitle("نقاط البيع")],
 ];
 
 export function resolvePageTitle(path: string): string {
@@ -100,13 +103,13 @@ export const SITE_URL = brand.contact.website;
 
 /** الوصف الافتراضي — يظهر في نتائج البحث وعند مشاركة روابط الموقع. */
 export const DEFAULT_META_DESCRIPTION =
-  "منصة الحسينية الموحدة — نظام حسابات متقدم (Uamex_erp) بقيد مزدوج وقوائم مالية جاهزة للمراجع، استشارات هندسية ومؤسسية بمعايير COSO، إدارة مشاريع ومخزون، ومتجر إلكتروني — اخفض زمن الإغلاق من 14 يوماً إلى 4 ساعات.";
+  "الحسينية لخدمات الأعمال تقدم استشارات وخدمات مهنية وحلولاً رقمية، من بينها Uamex ERP لإدارة العمليات المالية والتجارية والمخزون.";
 
 /** وصف لكل صفحة (SEO): وصف موجز غني بالكلمات المفتاحية العربية. */
 export const PAGE_DESCRIPTIONS: Record<string, string> = {
   "/": DEFAULT_META_DESCRIPTION,
   "/login":
-    "تسجيل الدخول إلى منصة الحسينية الموحدة — حسابات متقدمة، استشارات، ومقاولات في منصة واحدة آمنة وموثوقة.",
+    "سجّل الدخول إلى Uamex ERP لإدارة العمليات المالية والتجارية والمخزون في مساحة عمل منشأتك.",
   "/about":
     "التعريف بمجموعة الحسينية — قصة المؤسسة ورسالتها وقيمها وخدماتها المتنوعة.",
   "/portal":

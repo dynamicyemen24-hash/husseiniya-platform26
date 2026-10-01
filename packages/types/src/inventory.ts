@@ -321,3 +321,228 @@ export const PaginatedStockAdjustmentsSchema = PaginatedResponseSchema(
 export type PaginatedStockAdjustments = z.infer<
   typeof PaginatedStockAdjustmentsSchema
 >;
+
+// ─── Intermediary Parties (drivers, agents, brokers, representatives) ─
+export const PartyRoleSchema = z.enum([
+  "driver",
+  "agent",
+  "broker",
+  "intermediary",
+  "representative",
+  "distributor",
+  "wholesaler",
+  "retailer",
+  "consultant",
+  "customs_agent",
+  "logistics_provider",
+  "warehouse_operator",
+  "deliverer",
+  "collector",
+]);
+export type PartyRole = z.infer<typeof PartyRoleSchema>;
+
+export const PartyTypeSchema = z.enum(["person", "company", "freelancer"]);
+export type PartyType = z.infer<typeof PartyTypeSchema>;
+
+export const IntermediaryPartySchema = z
+  .object({
+    id: UUIDSchema,
+    tenantId: TenantIdSchema,
+    partyRole: PartyRoleSchema,
+    partyType: PartyTypeSchema,
+    code: z.string().max(50).optional(),
+    name: z.string().max(255),
+    nameAr: z.string().max(255).optional(),
+    email: z.string().max(255).optional(),
+    phone: z.string().max(50).optional(),
+    nationalId: z.string().max(50).optional(),
+    taxNumber: z.string().max(50).optional(),
+    address: z.string().optional(),
+    commissionType: z.enum(["percent", "fixed", "tiered"]).default("percent"),
+    commissionValue: MoneySchema.default(0),
+    creditLimit: MoneySchema.default(0),
+    currentBalance: MoneySchema.default(0),
+    status: EntityStatusSchema.default("active"),
+    notes: z.string().optional(),
+  })
+  .merge(AuditFieldsSchema);
+export type IntermediaryParty = z.infer<typeof IntermediaryPartySchema>;
+
+// ─── Document-Party Links ─
+export const PartyLinkSourceSchema = z.enum([
+  "sales_invoice",
+  "purchase_invoice",
+  "order",
+  "transfer",
+  "delivery",
+  "quotation",
+  "voucher",
+  "return",
+]);
+export type PartyLinkSource = z.infer<typeof PartyLinkSourceSchema>;
+
+// ─── Additional Expenses per Document ─
+export const ExpenseCategorySchema = z.enum([
+  "shipping",
+  "loading",
+  "unloading",
+  "customs_fee",
+  "insurance",
+  "fuel",
+  "toll",
+  "warehousing",
+  "packaging",
+  "handling",
+  "other",
+]);
+export type ExpenseCategory = z.infer<typeof ExpenseCategorySchema>;
+
+export const DocumentExpenseSchema = z
+  .object({
+    id: UUIDSchema,
+    tenantId: TenantIdSchema,
+    documentType: z.string(),
+    documentId: z.number(),
+    category: ExpenseCategorySchema,
+    description: z.string().max(500).optional(),
+    amount: MoneySchema,
+    currency: CurrencyCodeSchema,
+    exchangeRate: z.number().positive().default(1),
+    baseAmount: MoneySchema.optional(),
+    partyId: UUIDSchema.optional(),
+    isIncludedInTotal: z.boolean().default(true),
+    status: EntityStatusSchema.default("pending"),
+  })
+  .merge(AuditFieldsSchema);
+export type DocumentExpense = z.infer<typeof DocumentExpenseSchema>;
+
+// ─── Promotions / Bonuses ─
+export const PromotionTypeSchema = z.enum([
+  "percentage",
+  "fixed_amount",
+  "buy_x_get_y",
+  "bundle",
+  "volume_tier",
+  "seasonal",
+]);
+export type PromotionType = z.infer<typeof PromotionTypeSchema>;
+
+export const PromotionStatusSchema = z.enum([
+  "draft",
+  "active",
+  "paused",
+  "expired",
+  "cancelled",
+]);
+export type PromotionStatus = z.infer<typeof PromotionStatusSchema>;
+
+export const PromotionSchema = z
+  .object({
+    id: UUIDSchema,
+    tenantId: TenantIdSchema,
+    code: z.string().max(50).optional(),
+    name: z.string().max(255),
+    nameAr: z.string().max(255).optional(),
+    type: PromotionTypeSchema,
+    status: PromotionStatusSchema.default("draft"),
+    value: z.number().min(0).optional(),
+    minQuantity: z.number().int().nonnegative().default(0),
+    maxQuantity: z.number().int().optional(),
+    productIds: z.array(z.string()).optional(),
+    startDate: ISODateStringSchema,
+    endDate: ISODateStringSchema,
+    stackable: z.boolean().default(false),
+    partyId: UUIDSchema.optional(),
+  })
+  .merge(AuditFieldsSchema);
+export type Promotion = z.infer<typeof PromotionSchema>;
+
+// ─── Approval Queue (Pre-Approval Control) ─
+export const ApprovalQueuePrioritySchema = z.enum([
+  "low",
+  "normal",
+  "high",
+  "urgent",
+]);
+export type ApprovalQueuePriority = z.infer<typeof ApprovalQueuePrioritySchema>;
+
+export const ApprovalQueueStatusSchema = z.enum([
+  "pending",
+  "approved",
+  "rejected",
+  "modified",
+  "escalated",
+  "cancelled",
+]);
+export type ApprovalQueueStatus = z.infer<typeof ApprovalQueueStatusSchema>;
+
+export const ApprovalQueueSchema = z
+  .object({
+    id: UUIDSchema,
+    tenantId: TenantIdSchema,
+    documentType: z.string(),
+    documentId: z.number(),
+    title: z.string().max(255),
+    action: z.string().max(50),
+    proposedData: z.record(z.unknown()).default({}),
+    previousData: z.record(z.unknown()).default({}),
+    priority: ApprovalQueuePrioritySchema.default("normal"),
+    status: ApprovalQueueStatusSchema.default("pending"),
+    requestedById: UserIdSchema,
+    assignedToId: UserIdSchema.optional(),
+    rejectionReason: z.string().optional(),
+    expiresAt: ISODateStringSchema.optional(),
+  })
+  .merge(AuditFieldsSchema);
+export type ApprovalQueue = z.infer<typeof ApprovalQueueSchema>;
+
+// ─── Flexible Line Items (Enhanced line items with full pricing) ─
+export const InvoiceLineDiscountTypeSchema = z.enum([
+  "percentage",
+  "fixed_amount",
+  "bundle",
+  "volume",
+]);
+export type InvoiceLineDiscountType = z.infer<
+  typeof InvoiceLineDiscountTypeSchema
+>;
+
+export const FlexibleLineItemSchema = z
+  .object({
+    id: UUIDSchema,
+    tenantId: TenantIdSchema,
+    documentType: z.string(),
+    documentId: z.number(),
+    lineOrder: z.number().int(),
+    productId: UUIDSchema.optional(),
+    batchId: UUIDSchema.optional(),
+    serialNumbers: z.array(z.string()).optional(),
+    quantity: z.number().min(0),
+    unitId: UUIDSchema.optional(),
+    unitPrice: MoneySchema,
+    discountType: InvoiceLineDiscountTypeSchema.default("percentage"),
+    discountValue: z.number().min(0).default(0),
+    discountAmount: MoneySchema.default(0),
+    taxRate: z.number().min(0).max(100).default(0),
+    taxAmount: MoneySchema.default(0),
+    subtotal: MoneySchema.default(0),
+    total: MoneySchema.default(0),
+    status: EntityStatusSchema.default("pending"),
+  })
+  .merge(AuditFieldsSchema);
+export type FlexibleLineItem = z.infer<typeof FlexibleLineItemSchema>;
+
+export const FlexibleLineItemCreateSchema = FlexibleLineItemSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type FlexibleLineItemCreate = z.infer<
+  typeof FlexibleLineItemCreateSchema
+>;
+
+export const FlexibleLineItemUpdateSchema =
+  FlexibleLineItemCreateSchema.partial();
+export type FlexibleLineItemUpdate = z.infer<
+  typeof FlexibleLineItemUpdateSchema
+>;

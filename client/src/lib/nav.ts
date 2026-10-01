@@ -33,6 +33,8 @@ import {
   Cpu,
   TrendingUp,
   TrendingDown,
+  FileText,
+  PackageCheck,
 } from "lucide-react";
 import {
   HusHomeIcon,
@@ -319,6 +321,12 @@ export const APP_GROUPS: ReadonlyArray<{
         icon: BarChart3,
         highlight: true,
       },
+      {
+        path: "/statements",
+        label: "الدفاتر والكشوف",
+        icon: BookOpen,
+        highlight: true,
+      },
     ],
   },
   {
@@ -336,6 +344,8 @@ export const APP_GROUPS: ReadonlyArray<{
         icon: Truck,
         highlight: true,
       },
+      { path: "/purchase-orders", label: "أوامر الشراء", icon: FileText },
+      { path: "/goods-receipts", label: "سندات الاستلام", icon: PackageCheck },
       { path: "/procurement", label: "المشتريات التنفيذية", icon: Truck },
       {
         path: "/supplier-analytics",

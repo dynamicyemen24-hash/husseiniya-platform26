@@ -8,6 +8,34 @@
       "when": 1790020453675,
       "tag": "0000_nasty_kulan_gath",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790020600000,
+      "tag": "0001_purchase_orders_grns",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790020800000,
+      "tag": "0002_communication_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790606615811,
+      "tag": "0003_purchase_invoice_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790607000000,
+      "tag": "0004_external_ai_config",
+      "breakpoints": true
     }
   ]
 }

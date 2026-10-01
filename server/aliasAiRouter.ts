@@ -12,6 +12,7 @@ import { z } from "zod";
 import { router, tenantProcedure, publicProcedure } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
+import { getTenantAIProvider, invokeTenantLLM } from "./_core/tenantAI";
 import { getDb } from "./db";
 import { tenants } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
@@ -140,7 +141,8 @@ export const aliasAiRouter = router({
         /* non-fatal: proceed without personalization */
       }
 
-      if (!ENV.forgeApiKey) {
+      const tenantAIProvider = await getTenantAIProvider(tenantId);
+      if (!tenantAIProvider && !ENV.forgeApiKey) {
         return {
           content: `${FALLBACK_AR}\n${FALLBACK_EN}`,
           degraded: true,
@@ -153,7 +155,7 @@ export const aliasAiRouter = router({
         const response = await withTimeout(
           withRetry(
             () =>
-              invokeLLM({
+              invokeTenantLLM(tenantId, {
                 messages: [
                   {
                     role: "system" as const,

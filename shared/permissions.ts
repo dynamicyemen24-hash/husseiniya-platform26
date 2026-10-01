@@ -15,6 +15,7 @@ export const PERMISSION_CATEGORIES = {
   PROCUREMENT: "procurement",
   REPORTS: "reports",
   SETTINGS: "settings",
+  COMMUNICATION: "communication",
   SECURITY: "security",
   POS: "pos",
   ADMIN: "admin",
@@ -123,6 +124,10 @@ export const PERMISSIONS = {
   PROCUREMENT_CREATE: "procurement.create",
   PROCUREMENT_APPROVE: "procurement.approve",
   PROCUREMENT_RECEIVE: "procurement.receive",
+
+  // ── Communication / Sharing (طلبات وتقارير: واتساب والإيميل) ─
+  COMMUNICATION_VIEW: "communication.view",
+  COMMUNICATION_SEND: "communication.send",
 
   // ── Reports ──────────────────────────────────────────────────
   REPORTS_VIEW: "reports.view",
@@ -267,6 +272,8 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.WORKFLOW_READ,
       PERMISSIONS.WORKFLOW_WRITE,
       PERMISSIONS.WORKFLOW_APPROVE,
+      PERMISSIONS.COMMUNICATION_VIEW,
+      PERMISSIONS.COMMUNICATION_SEND,
     ] as readonly PermissionKey[],
     isSystem: true,
   },

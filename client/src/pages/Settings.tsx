@@ -18,6 +18,8 @@ import {
   Building2,
   Globe,
   Database,
+  MessageCircle,
+  Sparkles,
 } from "lucide-react";
 
 export default function Settings() {
@@ -79,6 +81,16 @@ export default function Settings() {
   const [paymentMethods, setPaymentMethods] = useState("[]");
   const [postingRules, setPostingRules] = useState("{}");
 
+  const [comm, setComm] = useState({
+    whatsappEnabled: true,
+    whatsappCountryCode: "967",
+    whatsappFallbackNumber: "",
+    emailEnabled: true,
+    emailFallbackTo: "",
+    requireApprovedState: false,
+  });
+  const [externalAI, setExternalAI] = useState({ enabled: false, baseUrl: "", model: "", apiKey: "", hasApiKey: false });
+
   useEffect(() => {
     if (settingsData) {
       setInstName(
@@ -116,6 +128,22 @@ export default function Settings() {
       } catch {
         /* ignore */
       }
+      try {
+        const c = (settingsData as any)?.communicationConfig;
+        if (c && typeof c === "object")
+          setComm({
+            whatsappEnabled: c.whatsappEnabled !== false,
+            whatsappCountryCode: c.whatsappCountryCode || "967",
+            whatsappFallbackNumber: c.whatsappFallbackNumber || "",
+            emailEnabled: c.emailEnabled !== false,
+            emailFallbackTo: c.emailFallbackTo || "",
+            requireApprovedState: !!c.requireApprovedState,
+          });
+      } catch {
+        /* ignore */
+      }
+      const ai = (settingsData as any)?.externalAIConfig;
+      if (ai) setExternalAI({ enabled: !!ai.enabled, baseUrl: ai.baseUrl || "", model: ai.model || "", apiKey: "", hasApiKey: !!ai.hasApiKey });
     }
   }, [settingsData]);
 
@@ -161,6 +189,8 @@ export default function Settings() {
       paymentMethods: pm,
       postingRules: pr,
       zatcaConfig: JSON.stringify(zatca),
+      communicationConfig: JSON.stringify(comm),
+      externalAIConfig: { enabled: externalAI.enabled, baseUrl: externalAI.baseUrl, model: externalAI.model, apiKey: externalAI.apiKey || undefined },
     } as any);
   };
 
@@ -170,19 +200,42 @@ export default function Settings() {
         <div className="flex items-center justify-between border-b border-slate-200 pb-4">
           <div>
             <Badge className="bg-brand text-ink-deep font-bold text-xs px-3 py-1 mb-1">
-              تكوين المنصة
+              Uamex ERP · الإعدادات
             </Badge>
             <h1 className="text-2xl font-bold font-display text-slate-900 flex items-center gap-2">
               <SettingsIcon className="w-6 h-6 text-brand" />
-              إعدادات مؤسسة ومكتبة الحسينية
+              إعدادات المؤسسة
             </h1>
             <p className="text-xs text-slate-600 mt-1">
-              تعديل التفضيلات العامة، الهوية التشغيلية، والعملات المعتمدة.
+              حدّث اسم منشأتك وبياناتها التشغيلية؛ تظهر هذه الهوية في مستنداتك وتقاريرك.
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 p-4">
+              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2 font-display">
+                <Sparkles className="w-5 h-5 text-violet-600" /> مزودات الذكاء الاصطناعي والتكاملات
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-600">
+                إعداد متوافق مع واجهات OpenAI لمساعد المؤسسة والتحليل المالي واستخراج بنود الفواتير من الصور. تحفظ بيانات الاعتماد مشفرة ولا تعاد إلى المتصفح.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold text-slate-700">تفعيل استخراج الفواتير من الصور</span>
+                <input type="checkbox" checked={externalAI.enabled} onChange={e => setExternalAI({ ...externalAI, enabled: e.target.checked })} className="w-4 h-4 accent-violet-600" />
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5"><Label className="text-xs font-bold text-slate-700">عنوان API الأساسي (HTTPS)</Label><Input dir="ltr" value={externalAI.baseUrl} onChange={e => setExternalAI({ ...externalAI, baseUrl: e.target.value })} placeholder="https://api.example.com" className="h-9 text-xs" /></div>
+                <div className="space-y-1.5"><Label className="text-xs font-bold text-slate-700">اسم النموذج</Label><Input dir="ltr" value={externalAI.model} onChange={e => setExternalAI({ ...externalAI, model: e.target.value })} placeholder="vision-model" className="h-9 text-xs" /></div>
+                <div className="space-y-1.5 md:col-span-2"><Label className="text-xs font-bold text-slate-700">مفتاح API {externalAI.hasApiKey && "(مخزن؛ اتركه فارغاً للاحتفاظ به)"}</Label><Input dir="ltr" type="password" autoComplete="new-password" value={externalAI.apiKey} onChange={e => setExternalAI({ ...externalAI, apiKey: e.target.value })} placeholder={externalAI.hasApiKey ? "••••••••••••••••" : "أدخل مفتاح المزود"} className="h-9 text-xs" /></div>
+              </div>
+              <p className="text-[11px] text-slate-500">يُضاف المسار <span dir="ltr">/v1/chat/completions</span> تلقائياً. يجب أن يدعم المزود الصور وإخراج JSON. لن تُرسل الصورة إلا عند طلب الاستخراج.</p>
+            </CardContent>
+          </Card>
+
           <Card className="border border-slate-200 shadow-sm bg-white">
             <CardHeader className="bg-slate-50 border-b border-slate-100 p-4">
               <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2 font-display">
@@ -277,6 +330,111 @@ export default function Settings() {
                   placeholder="ملاحظات تظهر في ترويسة التقارير والفواتير الرسمية..."
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200 shadow-sm bg-white">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 p-4">
+              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2 font-display">
+                <MessageCircle className="w-5 h-5 text-emerald-600" />
+                التواصل والمشاركة
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-600">
+                قنوات إرسال الطلبات والتقارير (واتساب / إيميل) لفرق
+                المشتريات والموردين — وتُطبَّق على أزرار «مشاركة».
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold text-slate-700">
+                  تفعيل واتساب
+                </span>
+                <input
+                  type="checkbox"
+                  checked={comm.whatsappEnabled}
+                  onChange={e =>
+                    setComm({ ...comm, whatsappEnabled: e.target.checked })
+                  }
+                  className="w-4 h-4 accent-emerald-600"
+                />
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700">
+                    رمز الدولة للواتساب
+                  </Label>
+                  <Input
+                    value={comm.whatsappCountryCode}
+                    onChange={e =>
+                      setComm({
+                        ...comm,
+                        whatsappCountryCode: e.target.value.replace(/\D/g, ""),
+                      })
+                    }
+                    className="bg-white border-slate-200 text-xs h-9"
+                    placeholder="967"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700">
+                    رقم واتساب احتياطي (اختياري)
+                  </Label>
+                  <Input
+                    value={comm.whatsappFallbackNumber}
+                    onChange={e =>
+                      setComm({
+                        ...comm,
+                        whatsappFallbackNumber: e.target.value,
+                      })
+                    }
+                    className="bg-white border-slate-200 text-xs h-9 ltr"
+                    placeholder="771234567 — يُستخدم عند غياب رقم المورد"
+                  />
+                </div>
+              </div>
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold text-slate-700">
+                  تفعيل الإيميل
+                </span>
+                <input
+                  type="checkbox"
+                  checked={comm.emailEnabled}
+                  onChange={e =>
+                    setComm({ ...comm, emailEnabled: e.target.checked })
+                  }
+                  className="w-4 h-4 accent-emerald-600"
+                />
+              </label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">
+                  بريد احتياطي (اختياري)
+                </Label>
+                <Input
+                  value={comm.emailFallbackTo}
+                  onChange={e =>
+                    setComm({ ...comm, emailFallbackTo: e.target.value })
+                  }
+                  className="bg-white border-slate-200 text-xs h-9 ltr"
+                  placeholder="receiving@example.com — يُستخدم عند غياب بريد المورد"
+                />
+              </div>
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold text-slate-700">
+                  اشتراط الحالة المعتمدة قبل المشاركة
+                </span>
+                <input
+                  type="checkbox"
+                  checked={comm.requireApprovedState}
+                  onChange={e =>
+                    setComm({ ...comm, requireApprovedState: e.target.checked })
+                  }
+                  className="w-4 h-4 accent-brand"
+                />
+              </label>
+              <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-2.5">
+                عند تفعيله: لا تُرسل أوامر الشراء إلا بحالة «issued وما فوق» ولا
+                تُرسل السندات إلا «posting» والفواتير إلا «confirmed وما فوق».
+              </p>
             </CardContent>
           </Card>
 

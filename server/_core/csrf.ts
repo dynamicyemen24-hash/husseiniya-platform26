@@ -176,7 +176,8 @@ function validateOrigin(req: Request): boolean {
 
   try {
     const originUrl = new URL(origin);
-    return originUrl.host === host;
+    if (originUrl.host === host) return true;
+    return getTrustedExternalOrigins().has(originUrl.origin);
   } catch {
     return false;
   }
@@ -193,10 +194,28 @@ function validateReferer(req: Request): boolean {
 
   try {
     const refererUrl = new URL(referer);
-    return refererUrl.host === host;
+    if (refererUrl.host === host) return true;
+    return getTrustedExternalOrigins().has(refererUrl.origin);
   } catch {
     return false;
   }
+}
+
+/** Exact-origin allowlist for trusted same-site frontends behind a server proxy. */
+function getTrustedExternalOrigins(): Set<string> {
+  return new Set(
+    (process.env.ALLOWED_CSRF_ORIGINS ?? "")
+      .split(",")
+      .map(value => {
+        try {
+          const parsed = new URL(value.trim());
+          return parsed.protocol === "https:" ? parsed.origin : "";
+        } catch {
+          return "";
+        }
+      })
+      .filter(Boolean)
+  );
 }
 
 /**

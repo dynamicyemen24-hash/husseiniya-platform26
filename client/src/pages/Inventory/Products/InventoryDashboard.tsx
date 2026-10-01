@@ -77,11 +77,12 @@ export function InventoryDashboard() {
   const valuation = trpc.products.valuation.useQuery();
   const lowStock = trpc.products.lowStock.useQuery();
   const { data: warehouses } = trpc.warehouses.list.useQuery();
-  const { data: movements } = trpc.products.movements.useQuery(
-    {},
+  const movementDashboard = trpc.products.movementDashboard.useQuery(
+    undefined,
     { staleTime: 60_000 }
   );
-  const { data: productsData } = trpc.products.list.useQuery({ limit: 500 });
+  const { data: productsData } = trpc.products.list.useQuery({ limit: 100 });
+  const utils = trpc.useUtils();
   const products = productsData?.items ?? [];
 
   // KPIs for dashboard
@@ -93,17 +94,8 @@ export function InventoryDashboard() {
   const lowStockCount = summary.data?.lowStockCount ?? 0;
 
   // Movement stats
-  const today = new Date();
-  const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-
-  const movementsThisMonth =
-    movements?.filter(m => new Date(m.createdAt) >= thisMonth).length || 0;
-  const movementsLastMonth =
-    movements?.filter(
-      m =>
-        new Date(m.createdAt) >= lastMonth && new Date(m.createdAt) < thisMonth
-    ).length || 0;
+  const movementsThisMonth = movementDashboard.data?.currentMonth ?? 0;
+  const movementsLastMonth = movementDashboard.data?.previousMonth ?? 0;
   const movementChange =
     movementsLastMonth > 0
       ? Number(
@@ -114,29 +106,10 @@ export function InventoryDashboard() {
         )
       : 0;
 
-  // Top moving products
-  const productMovement = new Map<
-    number,
-    { in: number; out: number; transfers: number }
-  >();
-  movements?.forEach(m => {
-    if (!productMovement.has(m.productId)) {
-      productMovement.set(m.productId, { in: 0, out: 0, transfers: 0 });
-    }
-    const pm = productMovement.get(m.productId)!;
-    if (m.type === "in") pm.in += m.quantity;
-    else if (m.type === "out") pm.out += m.quantity;
-    else pm.transfers += m.quantity;
-  });
-
-  const topMoving = Array.from(productMovement.entries())
-    .map(([id, m]) => ({ id, ...m, total: m.in + m.out + m.transfers }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 10)
-    .map(m => {
-      const p = products.find(p => p.id === m.id);
-      return { ...m, name: p?.name || `منتج #${m.id}`, code: p?.code || "-" };
-    });
+  const topMoving = movementDashboard.data?.topMoving ?? [];
+  const activityByDay = new Map(
+    (movementDashboard.data?.dailyActivity ?? []).map(row => [row.day, row.count])
+  );
 
   return (
     <main
@@ -160,6 +133,14 @@ export function InventoryDashboard() {
               variant="outline"
               size="sm"
               className="text-xs h-8 border-border/50 text-white hover:bg-white/10 press-effect"
+              onClick={() => {
+                void Promise.all([
+                  summary.refetch(),
+                  valuation.refetch(),
+                  lowStock.refetch(),
+                  movementDashboard.refetch(),
+                ]);
+              }}
             >
               <RefreshCw className="w-3 h-3 ml-1" /> تحديث
             </Button>
@@ -167,13 +148,23 @@ export function InventoryDashboard() {
               variant="outline"
               size="sm"
               className="text-xs h-8 border-border/50 text-white hover:bg-white/10 press-effect"
-              onClick={() => {
-                const n = downloadCsv(
-                  `جرد_الأصناف_${new Date().toISOString().slice(0, 10)}.csv`,
-                  ["الرمز", "الاسم", "النوع"],
-                  products.map(p => [p.code, p.name, p.type])
-                );
-                toast.success(`تم تصدير ${n} صنف بتنسيق CSV`);
+              onClick={async () => {
+                try {
+                  const total = productsData?.total ?? products.length;
+                  const allProducts = [...products];
+                  for (let offset = allProducts.length; offset < total; offset += 100) {
+                    const next = await utils.products.list.fetch({ limit: 100, offset });
+                    allProducts.push(...next.items);
+                  }
+                  const count = downloadCsv(
+                    `جرد_الأصناف_${new Date().toISOString().slice(0, 10)}.csv`,
+                    ["الرمز", "الاسم", "النوع"],
+                    allProducts.map(p => [p.code, p.name, p.type])
+                  );
+                  toast.success(`تم تصدير ${count} صنف بتنسيق CSV`);
+                } catch {
+                  toast.error("تعذر تصدير قائمة الأصناف كاملة");
+                }
               }}
             >
               <Download className="w-3 h-3 ml-1" /> تصدير CSV
@@ -418,24 +409,15 @@ export function InventoryDashboard() {
                 {Array.from({ length: 30 }, (_, i) => {
                   const date = new Date();
                   date.setDate(date.getDate() - (29 - i));
-                  const dayMovements =
-                    movements?.filter(
-                      m =>
-                        new Date(m.createdAt).toDateString() ===
-                        date.toDateString()
-                    ).length || 0;
+                  const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                  const dayMovements = activityByDay.get(dayKey) ?? 0;
                   const maxMovements = Math.max(
-                    ...Array.from(
-                      { length: 30 },
-                      (_, j) =>
-                        movements?.filter(
-                          m =>
-                            new Date(m.createdAt).toDateString() ===
-                            new Date(
-                              Date.now() - (29 - j) * 86400000
-                            ).toDateString()
-                        ).length || 0
-                    ),
+                    ...Array.from({ length: 30 }, (_, j) => {
+                      const day = new Date();
+                      day.setDate(day.getDate() - (29 - j));
+                      const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+                      return activityByDay.get(key) ?? 0;
+                    }),
                     1
                   );
                   const height = Math.max(

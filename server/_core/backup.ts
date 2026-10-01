@@ -33,6 +33,15 @@ import { promises as fs } from "fs";
 import path from "path";
 import { eq, getTableColumns } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
+import {
+  intermediaryParties,
+  documentPartyLinks,
+  documentExpenses,
+  promotions,
+  approvalQueues,
+  lineItemHistory,
+  flexibleLineItems,
+} from "../../drizzle/schema";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { ENV } from "./env";
 import { getDb } from "../db";
@@ -97,12 +106,19 @@ export const BACKUP_TABLES: ReadonlyArray<{
     table: schema.inventoryBatches,
     tenantScoped: true,
   },
-  {
-    name: "stockAdjustments",
-    table: schema.stockAdjustments,
-    tenantScoped: true,
-  },
-  { name: "customers", table: schema.customers, tenantScoped: true },
+   {
+     name: "stockAdjustments",
+     table: schema.stockAdjustments,
+     tenantScoped: true,
+   },
+   { name: "intermediaryParties", table: schema.intermediaryParties, tenantScoped: true },
+   { name: "documentPartyLinks", table: schema.documentPartyLinks, tenantScoped: true },
+   { name: "documentExpenses", table: schema.documentExpenses, tenantScoped: true },
+   { name: "promotions", table: schema.promotions, tenantScoped: true },
+   { name: "approvalQueues", table: schema.approvalQueues, tenantScoped: true },
+   { name: "lineItemHistory", table: schema.lineItemHistory, tenantScoped: true },
+   { name: "flexibleLineItems", table: schema.flexibleLineItems, tenantScoped: true },
+   { name: "customers", table: schema.customers, tenantScoped: true },
   { name: "suppliers", table: schema.suppliers, tenantScoped: true },
   { name: "salesInvoices", table: schema.salesInvoices, tenantScoped: true },
   {

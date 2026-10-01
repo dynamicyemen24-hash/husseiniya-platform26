@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "منصة الحسينية",
-    "appDescription": "منصة الحسينية الموحدة — نظام الحسابات المتقدم، الاستشارات الهندسية والتقنية والمؤسيسية، خدمات المقاولين والأراضي، المتجر الإلكتروني، الخدمات الطلابية، التصاميم، وصيانة الأجهزة.",
+    "appDescription": "Uamex ERP من الحسينية لخدمات الأعمال — مساحة عمل لإدارة العمليات المالية والتجارية والمخزون، مع ربطها بالبيانات والتقارير ذات الصلة.",
     "appDescriptionEn": "ALHUSAINIA Unified Platform — Advanced accounting, engineering & technical consultancy, contracting & land services, e-commerce store, student services, designs, and device maintenance.",
     "home": "الرئيسية والتسويق",
     "workspaces": "مساحات العمل والأنظمة",
@@ -81,7 +81,7 @@
     "contactTitle": "تواصل مباشر",
     "contactSubtitle": "نحن منبهرون بزيارتكم لمقرنا أو عبر التواصل الهاتفي",
     "contactDescription": "فريق المهندسين والاستشاريين والفنيين في مؤسسة الحسينية والمكتبة مستعد لإنجاز مشاريعكم الهندسية والعقارية والمكتبية.",
-    "contactAddress": "المقر الرئيسي — شارع المؤسسة والمكتبة، فرع الهندسة والتخصص",
+    "contactAddress": "المركز الرئيسي — اليمن، ذمار، شارع المدينة الرياضية",
     "contactPhone": "+967 778 343 988 / +967 778 332 096",
     "contactEmail": "engineering@husseiniya-business.com",
     "contactButton": "طلب عرض سعر ودراسة هندسية الآن"

@@ -22,6 +22,8 @@ export class ErrorBoundary extends React.Component<
   ErrorBoundaryProps,
   ErrorBoundaryState
 > {
+  private recoveryTimer?: number;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
@@ -35,10 +37,30 @@ export class ErrorBoundary extends React.Component<
     this.setState({ errorInfo });
     this.props.onError?.(error, errorInfo);
 
-    // Log to monitoring service
+    // Keep diagnostics in monitoring/console, never in the customer's UI.
     if (typeof console !== "undefined") {
       console.error("[ErrorBoundary]", error, errorInfo);
     }
+
+    // Recover transparently from a stale chunk or a transient render fault.
+    // One automatic retry per tab is enough to avoid loops while keeping the
+    // normal experience free from technical error screens.
+    try {
+      const key = "alh-recovery-attempt";
+      const attempted = sessionStorage.getItem(key) === "1";
+      if (!attempted) {
+        sessionStorage.setItem(key, "1");
+        this.recoveryTimer = window.setTimeout(() => {
+          window.location.reload();
+        }, 350);
+      }
+    } catch {
+      // Storage may be disabled; the quiet fallback below remains available.
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.recoveryTimer) window.clearTimeout(this.recoveryTimer);
   }
 
   render() {
@@ -46,31 +68,31 @@ export class ErrorBoundary extends React.Component<
       if (this.props.fallback) return this.props.fallback;
       return (
         <div
-          role="alert"
+          role="status"
+          aria-live="polite"
+          dir="rtl"
           className={cn(
-            "flex flex-col items-center justify-center p-8 text-center",
-            "rounded-xl border bg-white shadow-md"
+            "flex min-h-[300px] flex-col items-center justify-center p-8 text-center",
+            "rounded-xl border border-border/60 bg-card shadow-sm"
           )}
-          style={{ minHeight: "300px" }}
         >
-          <div className="rounded-full bg-error-50 p-4">
-            <AlertTriangle className="size-8 text-error-600" />
+          <div className="grid size-12 place-items-center rounded-full bg-brand/10">
+            <RefreshCw className="size-5 animate-spin text-brand" />
           </div>
-          <h2 className="mt-4 text-xl font-bold text-neutral-900">
-            حدث خطأ غير متوقع
+          <h2 className="mt-4 text-lg font-bold text-foreground">
+            نعيد ترتيب مساحة العمل
           </h2>
-          <p className="mt-2 text-sm text-neutral-600">
-            تعذر تحميل هذا المحتوى. يرجى المحاولة مرة أخرى.
+          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+            لحظات ونعود بك إلى تجربة مستقرة.
           </p>
           <button
             onClick={() => {
               this.setState({ hasError: false, error: null, errorInfo: null });
               window.location.reload();
             }}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-600"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-brand-foreground transition-colors hover:bg-brand/90"
           >
-            <RefreshCw className="size-4" />
-            إعادة التحميل
+            متابعة
           </button>
         </div>
       );

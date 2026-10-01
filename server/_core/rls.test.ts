@@ -132,6 +132,14 @@ describe("0023_nuclear_fortress.sql — artifact contract (no DB)", () => {
     // (ه) idempotency ledger
     expect(s).toContain('CREATE TABLE IF NOT EXISTS "idempotency_keys"');
     expect(s).toContain("uq_idempotency_keys_tenant_key");
+    // (و) world-class document engine tables
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS "intermediary_parties"');
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS "document_party_links"');
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS "document_expenses"');
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS "promotions"');
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS "approval_queues"');
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS "line_item_history"');
+    expect(s).toContain('CREATE TABLE IF NOT EXISTS "flexible_line_items"');
     // safety: no destructive top-level statements
     for (const line of s.split("\n")) {
       const t = line.trim().toUpperCase();

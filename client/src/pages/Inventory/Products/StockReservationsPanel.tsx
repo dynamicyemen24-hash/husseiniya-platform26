@@ -34,6 +34,8 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ProductPicker } from "@/components/ProductPicker";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const formatNum = (n: number) =>
   new Intl.NumberFormat("en-US").format(Math.round(n * 100) / 100);
@@ -104,11 +106,24 @@ interface ReservationItem {
 
 export function StockReservationsPanel() {
   const { data: warehouses } = trpc.warehouses.list.useQuery();
-  const { data: productsData } = trpc.products.list.useQuery({ limit: 500 });
-  const { data: customersData } = trpc.customers.list.useQuery({ limit: 500 });
+  const { data: productsData } = trpc.products.list.useQuery({ limit: 100 });
+  const [customerSearch, setCustomerSearch] = useState("");
+  const debouncedCustomerSearch = useDebounce(customerSearch, 250);
+  const { data: customersData } = trpc.customers.list.useQuery({
+    limit: 100,
+    search: debouncedCustomerSearch || undefined,
+  });
 
   const products = productsData?.items ?? [];
   const customers = customersData?.items ?? [];
+  const [productPickerTarget, setProductPickerTarget] = useState<
+    "filter" | "form" | null
+  >(null);
+  const [pickedProduct, setPickedProduct] = useState<ProductItem | null>(null);
+  const displayedProduct = (id: number | null) =>
+    pickedProduct?.id === id
+      ? pickedProduct
+      : products.find(product => product.id === id) ?? null;
 
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
     null
@@ -309,21 +324,30 @@ export function StockReservationsPanel() {
 
           <div className="flex flex-col sm:flex-row gap-2 mb-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <Select
-                value={selectedProductId?.toString() || ""}
-                onValueChange={v => setSelectedProductId(v ? Number(v) : null)}
-              >
-                <SelectTrigger className="h-9 text-xs w-[180px]">
-                  <SelectValue placeholder="الصنف" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products?.map(p => (
-                    <SelectItem key={p.id} value={p.id.toString()}>
-                      {p.code} - {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 min-w-[180px] justify-between text-xs"
+                  onClick={() => setProductPickerTarget("filter")}
+                >
+                  {displayedProduct(selectedProductId)
+                    ? `${displayedProduct(selectedProductId)?.code} - ${displayedProduct(selectedProductId)?.name}`
+                    : "كل الأصناف"}
+                  <Search className="h-3.5 w-3.5" />
+                </Button>
+                {selectedProductId != null && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 px-2 text-xs"
+                    onClick={() => setSelectedProductId(null)}
+                  >
+                    مسح
+                  </Button>
+                )}
+              </div>
               <Select
                 value={selectedStatus}
                 onValueChange={v => setSelectedStatus(v)}
@@ -511,25 +535,17 @@ export function StockReservationsPanel() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-[11px]">الصنف *</Label>
-                <Select
-                  value={reservationForm.productId}
-                  onValueChange={v =>
-                    setReservationForm({ ...reservationForm, productId: v })
-                  }
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full justify-between text-xs"
+                  onClick={() => setProductPickerTarget("form")}
                 >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="اختر صنفاً" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products
-                      .filter(p => p.type === "goods")
-                      .map(p => (
-                        <SelectItem key={p.id} value={p.id.toString()}>
-                          {p.code} - {p.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                  {displayedProduct(Number(reservationForm.productId))
+                    ? `${displayedProduct(Number(reservationForm.productId))?.code} - ${displayedProduct(Number(reservationForm.productId))?.name}`
+                    : "اختر صنفاً"}
+                  <Search className="h-3.5 w-3.5" />
+                </Button>
               </div>
               <div>
                 <Label className="text-[11px]">المخزن</Label>
@@ -622,6 +638,12 @@ export function StockReservationsPanel() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-[11px]">العميل</Label>
+                <Input
+                  value={customerSearch}
+                  onChange={event => setCustomerSearch(event.target.value)}
+                  placeholder="ابحث عن عميل بالاسم أو الرمز أو الهاتف"
+                  className="mb-1 h-8 text-xs"
+                />
                 <Select
                   value={reservationForm.customerId}
                   onValueChange={v =>
@@ -692,6 +714,22 @@ export function StockReservationsPanel() {
           </form>
         </DialogContent>
       </Dialog>
+      <ProductPicker
+        open={productPickerTarget !== null}
+        onOpenChange={open => {
+          if (!open) setProductPickerTarget(null);
+        }}
+        typeFilter="goods"
+        onSelect={product => {
+          setPickedProduct(product);
+          if (productPickerTarget === "filter") {
+            setSelectedProductId(product.id);
+          } else {
+            setReservationForm(form => ({ ...form, productId: String(product.id) }));
+          }
+          setProductPickerTarget(null);
+        }}
+      />
     </div>
   );
 }

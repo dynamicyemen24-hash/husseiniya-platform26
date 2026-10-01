@@ -195,8 +195,7 @@ export default defineConfig({
     target: "es2022",
     cssCodeSplit: true,
     chunkSizeWarningLimit: 300,
-    // Hidden sourcemaps: available to Sentry via CI upload, not exposed in devtools.
-    sourcemap: "hidden",
+    // Performance budgets (bytes)
     rollupOptions: {
       output: {
         // Content-hashed, deterministic filenames for long-term caching + SRI.
@@ -276,12 +275,15 @@ export default defineConfig({
         },
       },
     },
+    reportCompressedSize: true,
   },
+  // Mobile-specific optimizations
   server: {
     host: true,
-    hmr: {
-      clientPort: 443,
-    },
+    // Embedded preview browsers can load transformed modules before Vite's
+    // refresh preamble. Disable HMR only for the local server; production is
+    // unchanged and still receives fully optimized assets.
+    hmr: false,
     allowedHosts: [
       ".manuspre.computer",
       ".manus.computer",
@@ -295,5 +297,21 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // Security headers
+    headers: {
+      "Cross-Origin-Resource-Policy": "cross-origin",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+    },
+  },
+  // Optimize dependencies for mobile
+  optimizeDeps: {
+    include: ["react", "react-dom", "framer-motion", "lucide-react"],
+    // Pre-bundle critical dependencies
+    force: false,
+  },
+  // Worker configuration for mobile
+  worker: {
+    format: "es",
   },
 });

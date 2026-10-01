@@ -27,7 +27,6 @@ import { AppLayout } from "@/layouts/AppLayout";
 import { injectDesignTokens } from "@/lib/design";
 import { useEffect } from "react";
 
-const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const Login = lazy(() => import("@/pages/Login"));
 const WorkspaceDashboard = lazy(() => import("@/pages/WorkspaceDashboard"));
@@ -52,6 +51,8 @@ const ErpPage = lazy(() => import("@/pages/ErpPage"));
 const Inventory = lazy(() => import("@/pages/Inventory"));
 const Security = lazy(() => import("@/pages/Security"));
 const Procurement = lazy(() => import("@/pages/Procurement"));
+const PurchaseOrders = lazy(() => import("@/pages/PurchaseOrders"));
+const GoodsReceipts = lazy(() => import("@/pages/GoodsReceipts"));
 const ProcurementWorkspace = lazy(() => import("@/pages/ProcurementWorkspace"));
 const SupplierAnalytics = lazy(() => import("@/pages/SupplierAnalytics"));
 const Projects = lazy(() => import("@/pages/Projects"));
@@ -78,6 +79,7 @@ const SmartBasicData = lazy(() => import("@/pages/SmartBasicData"));
 const ZatcaIntegration = lazy(() => import("@/pages/ZatcaIntegration"));
 const Beneficiaries = lazy(() => import("@/pages/Beneficiaries"));
 const FinancialStatements = lazy(() => import("@/pages/FinancialStatements"));
+const Statements = lazy(() => import("@/pages/Statements"));
 const FiscalPeriods = lazy(() => import("@/pages/FiscalPeriods"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
@@ -110,7 +112,7 @@ const GUEST_ROUTES: RouteDef[] = [
 ];
 
 const APP_ROUTES: RouteDef[] = [
-  { path: "/app", page: DashboardPage },
+  { path: "/app", page: WorkspaceDashboard },
   { path: "/accounting", page: Home },
   { path: "/commercial", page: Commercial },
   { path: "/reports", page: Reports },
@@ -122,6 +124,8 @@ const APP_ROUTES: RouteDef[] = [
   { path: "/procurement-workspace", page: ProcurementWorkspace },
   { path: "/supplier-analytics", page: SupplierAnalytics },
   { path: "/procurement", page: Procurement },
+  { path: "/purchase-orders", page: PurchaseOrders },
+  { path: "/goods-receipts", page: GoodsReceipts },
   { path: "/projects", page: Projects },
   { path: "/hr", page: HRPage },
   { path: "/support", page: SupportQuality },
@@ -144,6 +148,7 @@ const APP_ROUTES: RouteDef[] = [
   { path: "/zatca", page: ZatcaIntegration },
   { path: "/beneficiaries", page: Beneficiaries },
   { path: "/financial-statements", page: FinancialStatements },
+  { path: "/statements", page: Statements },
   { path: "/fiscal-periods", page: FiscalPeriods },
 ];
 
@@ -196,15 +201,6 @@ function App() {
   return (
     <I18nProvider>
       <ErrorBoundary>
-        {/* Keyboard/screen-reader shortcut to jump straight to the page content,
-            skipping the header & floating widgets (WCAG 2.4.1 "Bypass Blocks"). */}
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:right-3 focus:z-[95] focus:bg-brand focus:text-ink-deep focus:px-4 focus:py-2 focus:rounded-lg focus:font-black focus:text-xs focus:shadow-xl"
-        >
-          تخطّ إلى المحتوى الرئيسي
-        </a>
-
         <ThemeProvider defaultTheme="light" switchable>
           <WishlistProvider>
             <OfflineProvider>

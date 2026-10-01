@@ -251,7 +251,7 @@ export default function WorkspaceDashboard() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="inline-flex items-center gap-1 bg-white/10 border border-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {brand.names.erp} v{brand.names.version} · منصتك الموحدة
+                    {brand.names.erpDisplay} v{brand.names.version} · مساحة عملك
                   </span>
                   <span className="text-brand-300 text-xs font-bold">
                     {greetingByHour()}، {firstName} 👋

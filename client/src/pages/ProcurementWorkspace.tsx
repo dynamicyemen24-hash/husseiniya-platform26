@@ -42,11 +42,19 @@ const sections = [
     tone: "bg-amber-50 text-amber-700",
   },
   {
+    title: "أوامر الشراء",
+    description:
+      "إنشاء الأوامر واعتمادها وإصدارها، متابعة الكميات والاستلام والإغلاق.",
+    icon: FileText,
+    href: "/purchase-orders",
+    tone: "bg-sky-50 text-sky-700",
+  },
+  {
     title: "التوريد والاستلام",
     description:
-      "متابعة التوريد، إثبات الاستلام، الكميات والتكلفة الفعلية والربط المحاسبي.",
+      "سندات الاستلام (GRN)، ترحيل المخزون والقيد المحاسبي، والربط بأوامر الشراء.",
     icon: PackageCheck,
-    href: "/requisitions",
+    href: "/goods-receipts",
     tone: "bg-emerald-50 text-emerald-700",
   },
   {

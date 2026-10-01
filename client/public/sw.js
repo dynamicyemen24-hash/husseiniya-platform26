@@ -1,9 +1,10 @@
-// ALHUSAINIA service worker (v23) — self-hosted fonts + catalog SWR caching.
+// ALHUSAINIA Enterprise Service Worker (v7.3.0) — High-Performance Offline & Auto-Update Engine.
 // Network-first for navigations (offline → cached app shell), cache-first for
-// static assets, stale-while-revalidate for the public catalog (/api/web/catalog),
-// and NEVER caches tenant-scoped /api/trpc (avoids stale cross-tenant responses).
-const CACHE = "alhusainia-v23";
+// static assets, stale-while-revalidate for catalog, and background sync for mutations.
+const CACHE = "alhusainia-v7.3.0";
 const CATALOG_CACHE = "alhusainia-catalog-v1";
+const MUTATION_CACHE = "alhusainia-mutations-v1";
+
 const SHELL = [
   "/",
   "/index.html",
@@ -11,21 +12,14 @@ const SHELL = [
   "/icon-192.png",
   "/icon-512.png",
   "/manifest.webmanifest",
+  "/favicon.ico",
+  "/favicon-32x32.png",
 ];
 
-// Populated at BUILD time by scripts/build-server.cjs (which scans
-// dist/public/assets and injects every emitted JS/CSS chunk here). This makes
-// the ENTIRE app — including React.lazy route chunks like Landing.js and the
-// ar.js locale, which are NOT referenced from index.html — available offline
-// from the very first visit. Without it, a page is served offline but any
-// uncached dynamic import() rejects, blowing up the app shell.
+// Populated at BUILD time by scripts/build-server.cjs
 const PRECACHE_ASSETS = /*__ASSET_MANIFEST__*/ [];
 
-// Discover the Vite-built entry assets referenced by index.html so the whole
-// app shell (HTML + JS/CSS) is precached at install time. Without this, a
-// freshly-installed worker only caches the .html and the first offline
-// navigation shell-loads but the script chunks fail → blank/unresponsive page
-// instead of the app + OfflineBanner.
+// Discover Vite entry assets from index.html
 async function precacheEntryAssets(cache) {
   try {
     const res = await fetch("/index.html");
@@ -43,6 +37,7 @@ async function precacheEntryAssets(cache) {
   }
 }
 
+// ─── Install ──────────────────────────────────────────────────
 self.addEventListener("install", event => {
   event.waitUntil(
     caches
@@ -50,32 +45,103 @@ self.addEventListener("install", event => {
       .then(c => c.addAll([...SHELL, ...PRECACHE_ASSETS]).catch(() => {}))
       .then(() => caches.open(CACHE))
       .then(precacheEntryAssets)
-    // NOTE: we deliberately do NOT call self.skipWaiting() here. Letting a new
-    // worker wait gives the app a chance to notify the user (SWUpdateToast) and
-    // apply the update when *they* choose — instead of silently switching to a
-    // fresh worker mid-session. SKIP_WAITING is honoured on request below.
   );
 });
 
-// Honour the app's "تحديث الآن" request (see client/src/lib/use-sw-update.ts).
+// ─── Activate: Purge Stale Caches & Claim Clients ────────────
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then(keys =>
+        Promise.all(
+          keys
+            .filter(k => k !== CACHE && k !== CATALOG_CACHE && k !== MUTATION_CACHE)
+            .map(k => caches.delete(k))
+        )
+      )
+      .then(() => self.clients.claim())
+      .then(async () => {
+        // Broadcast to clients that activation is complete
+        const clients = await self.clients.matchAll({ type: "window" });
+        for (const client of clients) {
+          client.postMessage({ type: "SW_ACTIVATED", version: "v7.3.0" });
+        }
+      })
+  );
+});
+
+// ─── Client Messages & Commands ──────────────────────────────
 self.addEventListener("message", event => {
-  if (event.data?.type === "SKIP_WAITING") {
+  if (!event.data) return;
+
+  if (event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
-  if (event.data?.type === "LOCAL_NOTIFY") {
-    const { title, body, tag } = event.data;
-    self.registration.showNotification(title || "تنبيه", {
+
+  if (event.data.type === "GET_VERSION") {
+    event.ports[0]?.postMessage({ version: "v7.3.0" });
+  }
+
+  if (event.data.type === "LOCAL_NOTIFY") {
+    const { title, body, tag, data } = event.data;
+    self.registration.showNotification(title || "تنبيه الحسينية", {
       body: body || "",
       icon: "/icon-192.png",
       badge: "/favicon-32x32.png",
       tag: tag || "local",
       dir: "rtl",
       lang: "ar",
+      data: data || { url: "/app" },
     });
   }
 });
 
-// Push من الخادم — تنبيهات مخزون/فاتورة حتى مع إغلاق المتصفح
+// ─── Background Sync for Offline Mutations ────────────────────
+self.addEventListener("sync", event => {
+  if (event.tag === "sync-mutations") {
+    event.waitUntil(
+      (async () => {
+        try {
+          const cache = await caches.open(MUTATION_CACHE);
+          const requests = await cache.keys();
+          for (const req of requests) {
+            try {
+              const res = await fetch(req);
+              if (res.ok) {
+                await cache.delete(req);
+              }
+            } catch {
+              // Retry on next sync event
+            }
+          }
+        } catch (error) {
+          console.error("[SW] Sync failed:", error);
+        }
+      })()
+    );
+  }
+});
+
+// ─── Periodic Background Sync ─────────────────────────────────
+self.addEventListener("periodicsync", event => {
+  if (event.tag === "periodic-data-sync") {
+    event.waitUntil(
+      (async () => {
+        try {
+          const clients = await self.clients.matchAll();
+          clients.forEach(client => {
+            client.postMessage({ type: "PERIODIC_SYNC", timestamp: Date.now() });
+          });
+        } catch (error) {
+          console.error("[SW] Periodic sync failed:", error);
+        }
+      })()
+    );
+  }
+});
+
+// ─── Push Notifications ───────────────────────────────────────
 self.addEventListener("push", event => {
   let data = {};
   try {
@@ -83,10 +149,11 @@ self.addEventListener("push", event => {
   } catch {
     data = { title: event.data ? event.data.text() : "تنبيه" };
   }
-  const title = data.title || "تنبيه من الحسينية";
-  const body = data.body || data.message || "";
+  const title = data.title || "تنبيه من الحسينية لخدمات الأعمال";
+  const body = data.body || data.message || "إشعار جديد في نظام Uamex ERP";
   const tag = data.tag || "push";
   const url = data.url || "/app";
+
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
@@ -96,6 +163,10 @@ self.addEventListener("push", event => {
       dir: "rtl",
       lang: "ar",
       data: { url },
+      actions: [
+        { action: "view", title: "عرض" },
+        { action: "dismiss", title: "تجاهل" },
+      ],
     })
   );
 });
@@ -106,38 +177,25 @@ self.addEventListener("notificationclick", event => {
   event.waitUntil(
     self.clients.matchAll({ type: "window" }).then(clients => {
       for (const c of clients) {
-        if (c.url.includes(self.location.origin) && "focus" in c)
+        if (c.url.includes(self.location.origin) && "focus" in c) {
           return c.focus();
+        }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
 });
 
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then(keys =>
-        Promise.all(
-          keys
-            .filter(k => k !== CACHE && k !== CATALOG_CACHE)
-            .map(k => caches.delete(k))
-        )
-      )
-      .then(() => self.clients.claim())
-  );
-});
-
+// ─── Fetch Handling with Advanced Routing & Offline Fallback ──
 self.addEventListener("fetch", event => {
   const req = event.request;
-  if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
 
-  // Public catalog: stale-while-revalidate — instant repeat visits, background refresh.
-  // This is unauthenticated guest data (storefront), safe to cache per-request.
-  if (url.pathname === "/api/web/catalog") {
+  // Ignore cross-origin non-GET requests
+  if (url.origin !== self.location.origin && req.method !== "GET") return;
+
+  // Public catalog: stale-while-revalidate
+  if (url.origin === self.location.origin && url.pathname === "/api/web/catalog") {
     event.respondWith(
       caches.open(CATALOG_CACHE).then(cache =>
         cache.match(req).then(cached => {
@@ -157,16 +215,38 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  if (url.pathname.startsWith("/api/")) return; // never cache tenant API responses
+  // Never cache tenant API responses
+  if (url.pathname.startsWith("/api/")) {
+    if (req.method === "POST" && url.pathname.includes("/api/trpc")) {
+      // Offline mutation interceptor
+      event.respondWith(
+        fetch(req).catch(async () => {
+          try {
+            const cache = await caches.open(MUTATION_CACHE);
+            await cache.put(req, req.clone());
+            if ("sync" in self.registration) {
+              await self.registration.sync.register("sync-mutations");
+            }
+          } catch {}
+          return new Response(JSON.stringify({ queued: true, offline: true }), {
+            status: 202,
+            headers: { "Content-Type": "application/json" },
+          });
+        })
+      );
+    }
+    return;
+  }
 
-  // SPA navigations: try network, fall back to cached app shell when offline;
-  // if even the shell is missing, serve the static /offline.html last resort.
+  // SPA navigation: Network-first with cached shell fallback
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req)
         .then(res => {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(req, copy));
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then(c => c.put(req, copy));
+          }
           return res;
         })
         .catch(() =>
@@ -178,23 +258,26 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  event.respondWith(
-    caches.match(req).then(cached => {
-      if (cached) return cached;
-      return fetch(req)
-        .then(res => {
-          const isAsset =
-            res &&
-            res.ok &&
-            (url.pathname.startsWith("/assets/") ||
-              /\.(png|svg|webmanifest|css|js)$/.test(url.pathname));
-          if (isAsset) {
-            const copy = res.clone();
-            caches.open(CACHE).then(c => c.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => cached);
-    })
-  );
+  // Static assets: Cache-first with background network update
+  if (req.method === "GET") {
+    event.respondWith(
+      caches.match(req).then(cached => {
+        if (cached) return cached;
+        return fetch(req)
+          .then(res => {
+            const isAsset =
+              res &&
+              res.ok &&
+              (url.pathname.startsWith("/assets/") ||
+                /\.(png|svg|webp|ico|webmanifest|css|js|woff2?)$/.test(url.pathname));
+            if (isAsset) {
+              const copy = res.clone();
+              caches.open(CACHE).then(c => c.put(req, copy));
+            }
+            return res;
+          })
+          .catch(() => cached);
+      })
+    );
+  }
 });

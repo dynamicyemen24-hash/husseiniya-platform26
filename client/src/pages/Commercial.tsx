@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { friendlyError } from "@/lib/friendlyErrors";
 import { useDebounce } from "@/hooks/useDebounce";
+import { downloadInvoiceImportTemplate, parseInvoiceImportFile } from "@/lib/invoiceImport";
 import { ProductPicker } from "@/components/ProductPicker";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CustomFields } from "@/components/CustomFields";
@@ -50,8 +51,27 @@ import {
   Download,
   ReceiptText,
   Tag,
+  ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
+
+async function prepareInvoiceImage(file: File): Promise<{ imageDataUrl: string; mimeType: "image/jpeg" }> {
+  if (!file.type.startsWith("image/")) throw new Error("اختر ملف صورة صالحاً");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("تعذر تجهيز الصورة");
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  for (const quality of [0.72, 0.58, 0.45]) {
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    if (dataUrl.length <= 70_000) return { imageDataUrl: dataUrl, mimeType: "image/jpeg" };
+  }
+  throw new Error("الصورة كبيرة؛ التقطها بإضاءة جيدة أو اختر صورة أصغر");
+}
 import { statusColors, statusLabels } from "./commercial/lib/status-maps";
 import {
   exportProductsCsv,
@@ -73,9 +93,12 @@ type Tab =
   | "orders"
   | "offers";
 
+const PAGE_SIZE = 50;
+
 export default function Commercial() {
   const [activeTab, setActiveTab] = useState<Tab>("products");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(0);
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   // Products
@@ -84,7 +107,7 @@ export default function Commercial() {
     refetch: refetchProducts,
     isLoading: loadingProducts,
   } = trpc.products.list.useQuery(
-    { search: debouncedSearch || undefined },
+    { search: debouncedSearch || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
     { staleTime: 60_000, refetchOnWindowFocus: false }
   );
   const productsData = productsResponse?.items ?? [];
@@ -284,7 +307,7 @@ export default function Commercial() {
     refetch: refetchCustomers,
     isLoading: loadingCustomers,
   } = trpc.customers.list.useQuery(
-    { search: debouncedSearch || undefined },
+    { search: debouncedSearch || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
     { staleTime: 60_000, refetchOnWindowFocus: false }
   );
   const customersData = customersResponse?.items ?? [];
@@ -329,7 +352,7 @@ export default function Commercial() {
     refetch: refetchSuppliers,
     isLoading: loadingSuppliers,
   } = trpc.suppliers.list.useQuery(
-    { search: debouncedSearch || undefined },
+    { search: debouncedSearch || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
     { staleTime: 60_000, refetchOnWindowFocus: false }
   );
   const suppliersData = suppliersResponse?.items ?? [];
@@ -374,7 +397,7 @@ export default function Commercial() {
     refetch: refetchSales,
     isLoading: loadingSales,
   } = trpc.sales.list.useQuery(
-    {},
+    { search: debouncedSearch || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
     { staleTime: 60_000, refetchOnWindowFocus: false }
   );
   const salesData = salesResponse?.items ?? [];
@@ -386,6 +409,7 @@ export default function Commercial() {
       quantity: number;
       unitPrice: string;
       discount: string;
+      productType?: "goods" | "service";
     }[]
   >([]);
   const [saleCustomerId, setSaleCustomerId] = useState<number | undefined>();
@@ -416,6 +440,107 @@ export default function Commercial() {
   const currenciesQ = trpc.modules.currencies.list.useQuery();
   const [saleCurrency, setSaleCurrency] = useState("YER");
   const [saleCurrencyRate, setSaleCurrencyRate] = useState("1");
+  const [saleSource, setSaleSource] = useState("");
+  const [importingSaleFile, setImportingSaleFile] = useState(false);
+  const saleImportInputRef = useRef<HTMLInputElement>(null);
+  const recentSalesForInvoiceQ = trpc.sales.list.useQuery(
+    { limit: 20, offset: 0 },
+    { enabled: showSaleDialog, staleTime: 30_000 }
+  );
+  const recentOrdersForInvoiceQ = trpc.orders.list.useQuery(
+    { limit: 20, offset: 0 },
+    { enabled: showSaleDialog, staleTime: 30_000 }
+  );
+  const saleSourceKind = saleSource.startsWith("invoice:") ? "invoice" : "order";
+  const saleSourceId = Number(saleSource.split(":")[1]) || 0;
+  const saleSourceInvoiceQ = trpc.sales.getInvoiceDetails.useQuery(
+    { id: saleSourceKind === "invoice" ? saleSourceId : 0 },
+    { enabled: saleSourceKind === "invoice" && saleSourceId > 0 }
+  );
+  const saleSourceOrderItemsQ = trpc.orders.getItems.useQuery(
+    { orderId: saleSourceKind === "order" ? saleSourceId : 0 },
+    { enabled: saleSourceKind === "order" && saleSourceId > 0 }
+  );
+  const resolveInvoiceImport = trpc.products.resolveInvoiceImport.useMutation();
+  const extractInvoiceImage = trpc.documents.extractInvoiceImage.useMutation();
+  const [extractingInvoiceImage, setExtractingInvoiceImage] = useState(false);
+  const invoiceImageInputRef = useRef<HTMLInputElement>(null);
+  const [invoiceImageTarget, setInvoiceImageTarget] = useState<"sale" | "purchase">("sale");
+  const importInvoiceImage = async (file?: File, kind: "sale" | "purchase" = "sale") => {
+    if (!file) return;
+    setExtractingInvoiceImage(true);
+    try {
+      const image = await prepareInvoiceImage(file);
+      const extracted = await extractInvoiceImage.mutateAsync(image);
+      if (!extracted.items.length) throw new Error("لم يعثر النموذج على بنود واضحة في الصورة");
+      if (extracted.items.some((item: { quantity: number | null; unitPrice: number | null }) => !item.quantity || item.unitPrice === null)) throw new Error("استخراج بعض الكميات أو الأسعار غير مكتمل؛ راجع وضوح الصورة ثم أعد المحاولة");
+      const resolved = await resolveInvoiceImport.mutateAsync({ lines: extracted.items.map((item: { code: string; name: string; quantity: number | null; unitPrice: number | null }) => ({ code: item.code || undefined, name: item.name, quantity: item.quantity!, unitPrice: String(item.unitPrice), discount: "0" })) });
+      if (resolved.some(line => !line.product)) throw new Error("تم استخراج البنود لكن بعضها غير مسجل كصنف أو خدمة؛ أضفها من الدليل أو عدّل المطابقة ثم أعد الاستيراد");
+      const mapped = resolved.map(line => {
+        if (!line.product) throw new Error("لم تتم مطابقة أحد البنود");
+        return { productId: line.product.id, productName: line.product.name, productType: line.product.type as "goods" | "service", quantity: line.quantity, unitPrice: line.unitPrice, discount: line.discount };
+      });
+      if (kind === "sale") setSaleItems(mapped as any); else { setPurchaseItems(mapped); setPurchasePoId(undefined); setPurchaseSource(""); }
+      toast.success(`تم استخراج ${mapped.length} بنداً. راجعها قبل حفظ الفاتورة.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر استخراج بيانات الصورة");
+    } finally { setExtractingInvoiceImage(false); }
+  };
+  const loadSaleSource = () => {
+    if (!saleSourceId) return;
+    if (saleSourceKind === "invoice") {
+      const result = saleSourceInvoiceQ.data;
+      if (!result) return toast.error("تعذر تحميل الفاتورة السابقة");
+      setSaleItems(result.items.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: String(item.unitPrice),
+        discount: String(item.discount ?? "0"),
+      })));
+      setSaleCustomerId(result.invoice.customerId ?? undefined);
+      setSaleCurrency(result.invoice.currency || "YER");
+      setSaleCurrencyRate(String(result.invoice.currencyRate || "1"));
+    } else {
+      const result = saleSourceOrderItemsQ.data;
+      if (!result?.length) return toast.error("الطلب لا يحتوي تفاصيل قابلة للتحميل");
+      setSaleItems(result.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: String(item.unitPrice),
+        discount: "0",
+      })));
+      const selectedOrder = ordersData.find(order => order.id === saleSourceId);
+      if (selectedOrder?.customerId) setSaleCustomerId(selectedOrder.customerId);
+    }
+    toast.success("تم تحميل تفاصيل المصدر إلى مسودة الفاتورة");
+  };
+  const importSaleFile = async (file?: File) => {
+    if (!file) return;
+    setImportingSaleFile(true);
+    try {
+      const lines = await parseInvoiceImportFile(file);
+      const resolved = await resolveInvoiceImport.mutateAsync({ lines });
+      const mapped = resolved.flatMap(line => line.product ? [{
+        productId: line.product.id,
+        productName: line.product.name,
+        productType: line.product.type as "goods" | "service",
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        discount: line.discount,
+      }] : []);
+      if (!mapped.length) throw new Error("لم تطابق بيانات الملف أي صنف مسجل؛ استخدم الرمز أو الباركود أو الاسم المطابق.");
+      if (mapped.length !== resolved.length) throw new Error(`تمت مطابقة ${mapped.length} من ${resolved.length} بنداً. لم تتغير الفاتورة؛ صحح رموز أو أسماء البنود غير المطابقة ثم أعد الاستيراد.`);
+      setSaleItems(mapped);
+      const unmatched = resolved.length - mapped.length;
+      toast.success(`تم تحميل ${mapped.length} بند${unmatched ? `، وتجاهل ${unmatched} غير مطابق` : ""}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر استيراد تفاصيل الفاتورة");
+    } finally {
+      setImportingSaleFile(false);
+    }
+  };
   const applyOffersToSale = () => {
     if (!offersData) return;
     const now = new Date();
@@ -477,7 +602,7 @@ export default function Commercial() {
     refetch: refetchPurchases,
     isLoading: loadingPurchases,
   } = trpc.purchases.list.useQuery(
-    {},
+    { search: debouncedSearch || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
     { staleTime: 60_000, refetchOnWindowFocus: false }
   );
   const purchasesData = purchasesResponse?.items ?? [];
@@ -494,6 +619,93 @@ export default function Commercial() {
   const [purchaseSupplierId, setPurchaseSupplierId] = useState<
     number | undefined
   >();
+  const [purchaseCurrency, setPurchaseCurrency] = useState("YER");
+  const [purchaseExchangeRate, setPurchaseExchangeRate] = useState("1");
+  const [purchasePoId, setPurchasePoId] = useState<number | undefined>();
+  const [purchaseSource, setPurchaseSource] = useState("");
+  const recentPurchasesForInvoiceQ = trpc.purchases.list.useQuery(
+    { limit: 20, offset: 0 },
+    { enabled: showPurchaseDialog, staleTime: 30_000 }
+  );
+  const recentPurchaseOrdersQ = trpc.purchaseOrders.list.useQuery(
+    { limit: 30, offset: 0 },
+    { enabled: showPurchaseDialog, staleTime: 30_000 }
+  );
+  const purchaseSourceKind = purchaseSource.startsWith("invoice:") ? "invoice" : "po";
+  const purchaseSourceId = Number(purchaseSource.split(":")[1]) || 0;
+  const purchaseSourceInvoiceItemsQ = trpc.purchases.getItems.useQuery(
+    { invoiceId: purchaseSourceKind === "invoice" ? purchaseSourceId : 0 },
+    { enabled: showPurchaseDialog && purchaseSourceKind === "invoice" && purchaseSourceId > 0 }
+  );
+  const purchaseSourceOrderQ = trpc.purchaseOrders.view.useQuery(
+    { id: purchaseSourceId },
+    { enabled: showPurchaseDialog && purchaseSourceId > 0 }
+  );
+  const purchaseImportInputRef = useRef<HTMLInputElement>(null);
+  const [importingPurchaseFile, setImportingPurchaseFile] = useState(false);
+  const importPurchaseFile = async (file?: File) => {
+    if (!file) return;
+    setImportingPurchaseFile(true);
+    try {
+      const lines = await parseInvoiceImportFile(file);
+      const resolved = await resolveInvoiceImport.mutateAsync({ lines });
+      const mapped = resolved.flatMap(line => line.product ? [{
+        productId: line.product.id,
+        productName: line.product.name,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        discount: line.discount,
+      }] : []);
+      if (!mapped.length) throw new Error("لم تطابق بيانات الملف أي صنف أو خدمة مسجلة.");
+      if (mapped.length !== resolved.length) throw new Error(`تمت مطابقة ${mapped.length} من ${resolved.length} بنداً. لم تتغير الفاتورة؛ صحح رموز أو أسماء البنود غير المطابقة ثم أعد الاستيراد.`);
+      setPurchaseItems(mapped);
+      setPurchasePoId(undefined);
+      setPurchaseSource("");
+      const unmatched = resolved.length - mapped.length;
+      toast.success(`تم تحميل ${mapped.length} بند${unmatched ? `، وتجاهل ${unmatched} غير مطابق` : ""}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر استيراد تفاصيل الفاتورة");
+    } finally {
+      setImportingPurchaseFile(false);
+    }
+  };
+  const loadPurchaseOrder = () => {
+    if (purchaseSourceKind === "invoice") {
+      const priorInvoice = (recentPurchasesForInvoiceQ.data?.items ?? []).find(item => item.id === purchaseSourceId);
+      const lines = purchaseSourceInvoiceItemsQ.data;
+      if (!priorInvoice || !lines?.length) return toast.error("تعذر تحميل تفاصيل فاتورة الشراء السابقة");
+      setPurchaseItems(lines.map(line => ({
+        productId: line.productId,
+        productName: line.productName,
+        quantity: line.quantity,
+        unitPrice: String(line.unitPrice),
+        discount: String(line.discount || "0"),
+      })));
+      setPurchaseSupplierId(priorInvoice.supplierId ?? undefined);
+      setPurchasePoId(undefined);
+      setPurchaseCurrency(priorInvoice.currency || (currenciesQ.data || []).find((item: any) => item.id === priorInvoice.currencyId)?.code || "YER");
+      setPurchaseExchangeRate(String(priorInvoice.exchangeRate || "1"));
+      toast.success("تم تحميل تفاصيل الفاتورة السابقة");
+      return;
+    }
+    const source = purchaseSourceOrderQ.data;
+    if (!source) return toast.error("تعذر تحميل أمر الشراء");
+    const lines = source.lines.filter(line => line.quantity > 0);
+    if (!lines.length) return toast.error("أمر الشراء لا يحتوي بنوداً قابلة للفوترة");
+    setPurchaseItems(lines.map(line => ({
+      productId: line.productId,
+      productName: line.productName,
+      quantity: line.quantity,
+      unitPrice: String(line.unitPrice),
+      discount: String(line.discount || "0"),
+    })));
+    setPurchaseSupplierId(source.po.supplierId);
+    setPurchasePoId(source.po.id);
+    const currency = (currenciesQ.data || []).find((item: any) => item.id === source.po.currencyId);
+    setPurchaseCurrency(currency?.code || "YER");
+    setPurchaseExchangeRate(String(source.po.exchangeRate || currency?.rate || "1"));
+    toast.success("تم تحميل البنود والمورد والعملة من أمر الشراء");
+  };
   const createPurchase = trpc.purchases.create.useMutation({
     onSuccess: () => {
       toast.success("تم إنشاء فاتورة المشتريات");
@@ -511,7 +723,11 @@ export default function Commercial() {
     data: ordersResponse,
     refetch: refetchOrders,
     isLoading: loadingOrders,
-  } = trpc.orders.list.useQuery({});
+  } = trpc.orders.list.useQuery({
+    search: debouncedSearch || undefined,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+  });
   const ordersData = ordersResponse?.items ?? [];
   const pendingWebOrders = ordersData.filter(
     o => isWebOrder(o) && o.status === "pending"
@@ -543,7 +759,7 @@ export default function Commercial() {
   const { data: offersData, isPending: loadingOffers } =
     trpc.modules.offers.list.useQuery(undefined, { staleTime: 60_000 });
   const productsForOffer = trpc.products.list.useQuery(
-    { limit: 300 },
+    { limit: 100 },
     { staleTime: 60_000 }
   );
   const catsForOffer = trpc.modules.masterData.listCategories.useQuery(
@@ -619,6 +835,7 @@ export default function Commercial() {
         {
           productId: p.id,
           productName: p.name,
+          productType: p.type,
           quantity: 1,
           unitPrice: String(p.salePrice ?? "0"),
           discount: "0",
@@ -833,15 +1050,33 @@ export default function Commercial() {
           <div className="relative">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="بحث في المنتجات، العملاء، الموردين..."
+              placeholder={
+                activeTab === "sales"
+                  ? "بحث برقم فاتورة المبيعات..."
+                  : activeTab === "purchases"
+                    ? "بحث برقم فاتورة المشتريات..."
+                    : activeTab === "orders"
+                      ? "بحث برقم الطلب..."
+                      : "بحث بالاسم أو الرمز أو الهاتف..."
+              }
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                setPage(0);
+              }}
               className="bg-card border-border pr-10 h-9 text-sm"
             />
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as Tab)}>
+        <Tabs
+          value={activeTab}
+          onValueChange={v => {
+            setActiveTab(v as Tab);
+            setPage(0);
+            setSearchQuery("");
+          }}
+        >
           <TabsList className="tabs-primary w-full sm:w-auto">
             <TabsTrigger value="products" className="tab-trigger">
               <Package className="w-3 h-3 ml-1" />
@@ -1268,7 +1503,7 @@ export default function Commercial() {
                           </p>
                           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                             <User className="w-3 h-3" />
-                            {customerNameOf(inv.customerId)}
+                            {inv.customerName || customerNameOf(inv.customerId)}
                           </p>
                           <p className="text-[11px] text-muted-foreground/70 font-mono">
                             {new Date(inv.invoiceDate).toLocaleDateString(
@@ -1283,7 +1518,7 @@ export default function Commercial() {
                             {statusLabelsMap[inv.status] || inv.status}
                           </Badge>
                           <p className="font-bold text-sm text-success font-mono">
-                            {inv.total} ر.ي
+                            {inv.total} {inv.currency || "YER"}
                           </p>
                           <p className="text-[10px] text-muted-foreground/70 font-mono">
                             مدفوع:{" "}
@@ -1412,7 +1647,7 @@ export default function Commercial() {
                           </p>
                           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                             <Truck className="w-3 h-3" />
-                            {supplierNameOf(inv.supplierId)}
+                            {inv.supplierName || supplierNameOf(inv.supplierId)}
                           </p>
                           <p className="text-[11px] text-muted-foreground/70 font-mono">
                             {new Date(inv.invoiceDate).toLocaleDateString(
@@ -1427,7 +1662,7 @@ export default function Commercial() {
                             {statusLabelsMap[inv.status] || inv.status}
                           </Badge>
                           <p className="font-bold text-sm text-destructive font-mono">
-                            {inv.total} ر.ي
+                            {inv.total} {inv.currency || (currenciesQ.data || []).find((currency: any) => currency.id === inv.currencyId)?.code || "YER"}
                           </p>
                           <p className="text-[10px] text-muted-foreground/70 font-mono">
                             مدفوع:{" "}
@@ -1509,7 +1744,7 @@ export default function Commercial() {
                   طلبات التوزيع
                   {pendingWebOrders > 0 && (
                     <Badge className="mr-2 text-[9px] bg-purple-100 text-purple-700">
-                      طلبات المتجر المعلقة: {pendingWebOrders}
+                      طلبات المتجر المعلقة ضمن الصفحة: {pendingWebOrders}
                     </Badge>
                   )}
                 </CardTitle>
@@ -1551,7 +1786,7 @@ export default function Commercial() {
                           </p>
                           <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                             <User className="w-3 h-3" />
-                            {customerNameOf(o.customerId)} •{" "}
+                            {o.customerName || customerNameOf(o.customerId)} •{" "}
                             {o.deliveryAddress || "بدون عنوان"}
                           </p>
                         </div>
@@ -1697,6 +1932,53 @@ export default function Commercial() {
               </CardContent>
             </Card>
           </TabsContent>
+          {activeTab !== "offers" && (() => {
+            const total =
+              activeTab === "products"
+                ? productsResponse?.total ?? 0
+                : activeTab === "customers"
+                  ? customersResponse?.total ?? 0
+                  : activeTab === "suppliers"
+                    ? suppliersResponse?.total ?? 0
+                    : activeTab === "sales"
+                      ? salesResponse?.total ?? 0
+                      : activeTab === "purchases"
+                        ? purchasesResponse?.total ?? 0
+                        : ordersResponse?.total ?? 0;
+            const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+            const first = total === 0 ? 0 : page * PAGE_SIZE + 1;
+            const last = Math.min((page + 1) * PAGE_SIZE, total);
+            return (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+                <p className="text-muted-foreground" aria-live="polite">
+                  عرض {first}–{last} من {total.toLocaleString("ar-EG")} نتيجة
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={page === 0}
+                    onClick={() => setPage(current => Math.max(0, current - 1))}
+                  >
+                    السابق
+                  </Button>
+                  <span className="min-w-20 text-center text-xs text-muted-foreground">
+                    صفحة {page + 1} من {pageCount}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={page + 1 >= pageCount}
+                    onClick={() => setPage(current => current + 1)}
+                  >
+                    التالي
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </Tabs>
       </main>
 
@@ -2698,7 +2980,7 @@ export default function Commercial() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="YER">ريال يمني (YER)</SelectItem>
-                    {(currenciesQ.data || []).map((c: any) => (
+                    {(currenciesQ.data || []).filter((c: any) => c.code !== "YER").map((c: any) => (
                       <SelectItem key={c.id} value={c.code}>
                         {c.code} — {c.name}
                       </SelectItem>
@@ -2709,10 +2991,56 @@ export default function Commercial() {
               <div>
                 <Label className="text-[10px]">سعر الصرف</Label>
                 <Input
+                  type="number"
+                  min="0.00000001"
+                  step="0.00000001"
+                  inputMode="decimal"
+                  dir="ltr"
                   value={saleCurrencyRate}
                   onChange={e => setSaleCurrencyRate(e.target.value)}
-                  className="h-8 text-xs"
+                  className="min-h-10 text-xs"
                 />
+              </div>
+            </div>
+            <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
+              <Label className="text-xs font-bold">تعبئة التفاصيل من مصدر سابق</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                <Select value={saleSource} onValueChange={setSaleSource}>
+                  <SelectTrigger className="min-h-10 text-xs">
+                    <SelectValue placeholder="اختر فاتورة أو طلباً حديثاً" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(recentSalesForInvoiceQ.data?.items ?? []).map(invoice => (
+                      <SelectItem key={`invoice:${invoice.id}`} value={`invoice:${invoice.id}`}>
+                        فاتورة {invoice.invoiceNumber} — {invoice.customerName || "بدون عميل"}
+                      </SelectItem>
+                    ))}
+                    {(recentOrdersForInvoiceQ.data?.items ?? []).map(order => (
+                      <SelectItem key={`order:${order.id}`} value={`order:${order.id}`}>
+                        طلب {order.orderNumber} — {order.customerName || "بدون عميل"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="outline" className="min-h-10 text-xs" onClick={loadSaleSource}
+                  disabled={!saleSource || saleSourceInvoiceQ.isFetching || saleSourceOrderItemsQ.isFetching}>
+                  {saleSourceInvoiceQ.isFetching || saleSourceOrderItemsQ.isFetching ? "جاري التحميل..." : "تحميل البنود"}
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input ref={saleImportInputRef} type="file" accept=".xlsx,.csv,.tsv,.txt,.json,.xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json,text/csv,application/xml" className="hidden"
+                  onChange={event => { void importSaleFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+                <Button type="button" variant="outline" className="min-h-10 text-xs" onClick={() => saleImportInputRef.current?.click()} disabled={importingSaleFile}>
+                  <Upload className="h-4 w-4 ml-1" />
+                  {importingSaleFile ? "جاري تحليل الملف..." : "استيراد Excel / CSV / JSON / XML"}
+                </Button>
+                <Button type="button" variant="outline" className="min-h-10 text-xs" disabled={extractingInvoiceImage} onClick={() => { setInvoiceImageTarget("sale"); invoiceImageInputRef.current?.click(); }}>
+                  <ScanLine className="h-4 w-4 ml-1" />{extractingInvoiceImage ? "جاري قراءة الصورة..." : "استخراج من صورة"}
+                </Button>
+                <Button type="button" variant="ghost" className="min-h-10 text-xs" onClick={downloadInvoiceImportTemplate}>
+                  <Download className="h-4 w-4 ml-1" /> قالب البنود
+                </Button>
+                <span className="text-[11px] leading-relaxed text-muted-foreground">يطابق البنود مع الأصناف والخدمات المسجلة بالرمز أو الباركود أو الاسم.</span>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -2799,13 +3127,13 @@ export default function Commercial() {
                   <div key={idx} className="flex items-center gap-1.5 mb-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold text-ink truncate">
-                        {item.productName}
+                        {item.productName} {item.productType === "service" && <span className="text-blue-600">· خدمة</span>}
                       </p>
                       <p className="text-[9px] text-muted-foreground">
                         {fmtNum(parseFloat(item.unitPrice) * item.quantity)} −
                         خصم {item.discount || "0"} ={" "}
-                        <span className="font-bold text-brand">
-                          {fmtNum(lineTotal)} ر.ي
+                          <span className="font-bold text-brand">
+                          {fmtNum(lineTotal)} {saleCurrency}
                         </span>
                       </p>
                     </div>
@@ -2856,20 +3184,24 @@ export default function Commercial() {
               <div className="flex flex-col gap-1 pt-2 border-t text-[11px]">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">المجموع الفرعي</span>
-                  <span className="font-bold">{fmtNum(saleTotal)} ر.ي</span>
+                  <span className="font-bold">{fmtNum(saleTotal)} {saleCurrency}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">إجمالي الخصم</span>
                   <span className="font-bold text-red-500">
-                    {fmtNum(saleDiscountTotal)} ر.ي
+                    {fmtNum(saleDiscountTotal)} {saleCurrency}
                   </span>
                 </div>
                 <div className="flex justify-between border-t pt-1">
                   <span className="font-bold text-ink">الإجمالي النهائي</span>
                   <span className="font-bold text-ink">
-                    {fmtNum(saleGrandTotal)} ر.ي
+                    {fmtNum(saleGrandTotal)} {saleCurrency}
                   </span>
                 </div>
+              </div>
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>المعادل بالعملة الأساسية (× {saleCurrencyRate || "1"})</span>
+                <span dir="ltr">{fmtNum(saleGrandTotal * (Number(saleCurrencyRate) || 0))}</span>
               </div>
             </div>
           </div>
@@ -2902,7 +3234,7 @@ export default function Commercial() {
                   currencyRate: saleCurrencyRate,
                 })
               }
-              disabled={saleItems.length === 0 || isCreatingSale}
+              disabled={saleItems.length === 0 || isCreatingSale || !Number.isFinite(Number(saleCurrencyRate)) || Number(saleCurrencyRate) <= 0}
             >
               {isCreatingSale ? "جاري الإنشاء..." : "تأكيد الفاتورة"}
             </Button>
@@ -2965,6 +3297,29 @@ export default function Commercial() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[10px]">عملة الفاتورة</Label>
+                <Select value={purchaseCurrency} onValueChange={code => {
+                  setPurchaseCurrency(code);
+                  const selected = (currenciesQ.data || []).find((item: any) => item.code === code);
+                  setPurchaseExchangeRate(selected ? String(selected.rate) : "1");
+                }}>
+                  <SelectTrigger className="min-h-10 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="YER">YER — ريال يمني</SelectItem>
+                    {(currenciesQ.data || []).filter((item: any) => item.code !== "YER").map((item: any) =>
+                      <SelectItem key={item.id} value={item.code}>{item.code} — {item.name}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px]">سعر الصرف إلى العملة الأساسية</Label>
+                <Input type="number" min="0.00000001" step="0.00000001" inputMode="decimal" dir="ltr" value={purchaseExchangeRate}
+                  onChange={event => setPurchaseExchangeRate(event.target.value)} className="min-h-10 text-xs" />
+              </div>
+            </div>
             <div>
               <Label className="text-[10px]">المورد</Label>
               <Select
@@ -2982,6 +3337,44 @@ export default function Commercial() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
+              <Label className="text-xs font-bold">تحميل البنود من فاتورة سابقة أو أمر شراء</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                <Select value={purchaseSource} onValueChange={setPurchaseSource}>
+                  <SelectTrigger className="min-h-10 text-xs"><SelectValue placeholder="اختر فاتورة أو أمر شراء" /></SelectTrigger>
+                  <SelectContent>
+                    {(recentPurchasesForInvoiceQ.data?.items ?? []).map(invoice =>
+                      <SelectItem key={`invoice:${invoice.id}`} value={`invoice:${invoice.id}`}>فاتورة {invoice.invoiceNumber} · {invoice.supplierName || "بدون مورد"}</SelectItem>
+                    )}
+                    {(recentPurchaseOrdersQ.data?.items ?? [])
+                      .filter(order => ["issued", "partially_received", "received"].includes(order.status))
+                      .map(order => <SelectItem key={`po:${order.id}`} value={`po:${order.id}`}>{order.poNumber} · {order.status}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="outline" className="min-h-10 text-xs" onClick={loadPurchaseOrder}
+                  disabled={!purchaseSourceId || purchaseSourceOrderQ.isFetching || purchaseSourceInvoiceItemsQ.isFetching}>
+                  {purchaseSourceOrderQ.isFetching || purchaseSourceInvoiceItemsQ.isFetching ? "جاري التحميل..." : "تحميل البنود"}
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input ref={purchaseImportInputRef} type="file" accept=".xlsx,.csv,.tsv,.txt,.json,.xml" className="hidden"
+                onChange={event => { void importPurchaseFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+              <input ref={invoiceImageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={event => { void importInvoiceImage(event.currentTarget.files?.[0], invoiceImageTarget); event.currentTarget.value = ""; }} />
+              <Button type="button" variant="outline" className="min-h-10 text-xs" disabled={importingPurchaseFile}
+                onClick={() => purchaseImportInputRef.current?.click()}>
+                <Upload className="h-4 w-4 ml-1" />{importingPurchaseFile ? "جاري التحليل..." : "استيراد تفاصيل من ملف"}
+              </Button>
+              <Button type="button" variant="outline" className="min-h-10 text-xs" disabled={extractingInvoiceImage}
+                onClick={() => { setInvoiceImageTarget("purchase"); invoiceImageInputRef.current?.click(); }}>
+                <ScanLine className="h-4 w-4 ml-1" />{extractingInvoiceImage ? "جاري قراءة الصورة..." : "استخراج من صورة"}
+              </Button>
+              <Button type="button" variant="ghost" className="min-h-10 text-xs" onClick={downloadInvoiceImportTemplate}>
+                <Download className="h-4 w-4 ml-1" /> قالب البنود
+              </Button>
+              <span className="text-[11px] text-muted-foreground">Excel وCSV وJSON وXML</span>
             </div>
             <div className="border rounded-lg p-2">
               <div className="flex items-center justify-between mb-2">
@@ -3039,7 +3432,7 @@ export default function Commercial() {
               ))}
               <div className="flex justify-end pt-2 border-t">
                 <p className="text-sm font-bold text-ink">
-                  الإجمالي: {fmtNum(purchaseTotal)} ر.ي
+                  الإجمالي: {fmtNum(purchaseTotal)} {purchaseCurrency}
                 </p>
               </div>
             </div>
@@ -3059,7 +3452,10 @@ export default function Commercial() {
               onClick={() =>
                 createPurchase.mutate({
                   supplierId: purchaseSupplierId,
+                  poId: purchasePoId,
                   items: purchaseItems,
+                  currency: purchaseCurrency,
+                  exchangeRate: purchaseExchangeRate,
                   paidAmount: "0",
                   discount: purchaseItems
                     .reduce((s, i) => s + (parseFloat(i.discount) || 0), 0)
@@ -3209,7 +3605,7 @@ export default function Commercial() {
             <div className="space-y-3 pt-2">
               <div className="rounded-lg bg-muted border border-border p-2.5 text-xs space-y-1">
                 <p className="font-bold text-foreground">
-                  {payTarget.invoice.invoiceNumber}
+                  {payTarget.invoice.invoiceNumber} · {payTarget.invoice.currency || (currenciesQ.data || []).find((currency: any) => currency.id === payTarget.invoice.currencyId)?.code || "YER"}
                 </p>
                 <p className="text-muted-foreground">
                   إجمالي الفاتورة:{" "}

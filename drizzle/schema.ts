@@ -404,9 +404,9 @@ export const openingBalances = pgTable(
     serverVersion: integer("serverVersion").default(1).notNull(),
     lastSyncAt: timestamp("lastSyncAt"),
     conflictState: varchar("conflictState", { length: 20 }).default("none"),
-    aggregateId: uuid("aggregateId"),
-    currencyId: integer("currencyId").references(() => currencies.id),
-    exchangeRate: decimal("exchangeRate", { precision: 18, scale: 8 })
+      aggregateId: uuid("aggregateId"),
+      currencyId: integer("currencyId").references(() => currencies.id),
+      exchangeRate: decimal("exchangeRate", { precision: 18, scale: 8 })
       .default("1")
       .notNull(),
     baseAmount: decimal("baseAmount", { precision: 15, scale: 2 })
@@ -558,6 +558,10 @@ export const settings = pgTable(
     zatcaConfig: text("zatcaConfig"),
     // ─── Document template (invoices/quotations/statements) ────────
     documentTemplate: text("documentTemplate"),
+    // ─── Communication / sharing (whatsapp & email) config ─────────
+    communicationConfig: text("communicationConfig"),
+    /** Encrypted tenant-managed OpenAI-compatible provider configuration. */
+    externalAIConfig: text("externalAIConfig"),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
     // Sync columns
     serverVersion: integer("serverVersion").default(1).notNull(),
@@ -1932,6 +1936,22 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "bank_transfer", // حوالة بنكية محلية
 ]);
 
+// ─── Purchase Orders & Goods Receipts (دورة التوريد الكاملة) ─────
+// سلسلة المطابقة الثلاثية: أمر شراء ← سند استلام (GRN) ← فاتورة شراء
+export const purchaseOrderStatusEnum = pgEnum("purchase_order_status", [
+  "draft",
+  "issued",
+  "partially_received",
+  "received",
+  "cancelled",
+  "closed",
+]);
+export const grnStatusEnum = pgEnum("grn_status", [
+  "draft",
+  "posted",
+  "cancelled",
+]);
+
 export const salesInvoices = pgTable(
   "sales_invoices",
   {
@@ -2095,6 +2115,8 @@ export const purchaseInvoices = pgTable(
     costCenterId: integer("costCenterId").references(() => costCenters.id),
     warehouseId: integer("warehouseId").references(() => warehouses.id),
     projectId: integer("projectId"),
+    poId: integer("poId").references(() => purchaseOrders.id),
+    grnId: integer("grnId").references(() => goodsReceipts.id),
     status: purchaseInvoiceStatusEnum("status").default("draft").notNull(),
     subtotal: decimal("subtotal", { precision: 15, scale: 2 })
       .default("0")
@@ -2129,6 +2151,7 @@ export const purchaseInvoices = pgTable(
     conflictState: varchar("conflictState", { length: 20 }).default("none"),
     aggregateId: uuid("aggregateId"),
     currencyId: integer("currencyId").references(() => currencies.id),
+    currency: varchar("currency", { length: 10 }).default("YER").notNull(),
     exchangeRate: decimal("exchangeRate", { precision: 18, scale: 8 })
       .default("1")
       .notNull(),
@@ -2150,6 +2173,8 @@ export const purchaseInvoices = pgTable(
     index("idx_purchaseInvoices_costCenter").on(t.costCenterId),
     index("idx_purchaseInvoices_warehouse").on(t.warehouseId),
     index("idx_purchaseInvoices_project").on(t.projectId),
+    index("idx_purchaseInvoices_po").on(t.poId),
+    index("idx_purchaseInvoices_grn").on(t.grnId),
     index("idx_purchaseInvoices_branch_costCenter").on(
       t.branchId,
       t.costCenterId
@@ -2217,6 +2242,196 @@ export const purchaseInvoiceItems = pgTable(
 export type PurchaseInvoiceItem = typeof purchaseInvoiceItems.$inferSelect;
 export type InsertPurchaseInvoiceItem =
   typeof purchaseInvoiceItems.$inferInsert;
+
+// ─── Purchase Orders (أوامر الشراء) ───────────────────────────────
+// أمر الشراء هو الالتزام التعاقدي مع المورد — نقطة انطلاق المطابقة الثلاثية.
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    ...govColumns(),
+    poNumber: varchar("poNumber", { length: 50 }).notNull(),
+    supplierId: integer("supplierId")
+      .notNull()
+      .references(() => suppliers.id),
+    branchId: integer("branchId").references(() => branches.id),
+    costCenterId: integer("costCenterId").references(() => costCenters.id),
+    warehouseId: integer("warehouseId").references(() => warehouses.id),
+    projectId: integer("projectId"),
+    requisitionId: integer("requisitionId").references(() => procurements.id),
+    status: purchaseOrderStatusEnum("status").default("draft").notNull(),
+    expectedDeliveryDate: timestamp("expectedDeliveryDate"),
+    notes: text("notes"),
+    subtotal: decimal("subtotal", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
+    taxRate: decimal("taxRate", { precision: 5, scale: 2 })
+      .default("0")
+      .notNull(),
+    taxAmount: decimal("taxAmount", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
+    discount: decimal("discount", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
+    total: decimal("total", { precision: 15, scale: 2 }).default("0").notNull(),
+    currencyId: integer("currencyId").references(() => currencies.id),
+    exchangeRate: decimal("exchangeRate", { precision: 18, scale: 8 })
+      .default("1")
+      .notNull(),
+    baseAmount: decimal("baseAmount", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
+    issuedById: integer("issuedById").references(() => users.id),
+    issuedAt: timestamp("issuedAt"),
+    cancelledAt: timestamp("cancelledAt"),
+    cancelledById: integer("cancelledById").references(() => users.id),
+    cancelReason: varchar("cancelReason", { length: 255 }),
+    closedAt: timestamp("closedAt"),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }),
+    userId: integer("userId").references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    // Sync columns
+    serverVersion: integer("serverVersion").default(1).notNull(),
+    lastSyncAt: timestamp("lastSyncAt"),
+    conflictState: varchar("conflictState", { length: 20 }).default("none"),
+    aggregateId: uuid("aggregateId"),
+  },
+  t => [
+    index("idx_purchaseOrders_tenant").on(t.tenantId),
+    index("idx_purchaseOrders_supplier").on(t.supplierId),
+    index("idx_purchaseOrders_status").on(t.status),
+    index("idx_purchaseOrders_requisition").on(t.requisitionId),
+    index("idx_purchaseOrders_warehouse").on(t.warehouseId),
+    unique("purchaseOrders_gc_tenant_unique").on(t.tenantId, t.globalCode),
+    uniqueIndex("uq_purchaseOrders_tenant_number").on(t.tenantId, t.poNumber),
+    unique("purchaseOrders_idempotency_key_unique").on(t.idempotencyKey),
+    check("chk_purchase_order_total_not_negative", sql`${t.total} >= 0`),
+    check("chk_purchase_order_subtotal_not_negative", sql`${t.subtotal} >= 0`),
+    check("chk_purchase_order_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrder = typeof purchaseOrders.$inferInsert;
+
+export const purchaseOrderItems = pgTable(
+  "purchase_order_items",
+  {
+    id: serial("id").primaryKey(),
+    poId: integer("poId")
+      .notNull()
+      .references(() => purchaseOrders.id),
+    productId: integer("productId")
+      .notNull()
+      .references(() => products.id),
+    productName: varchar("productName", { length: 255 }).notNull(),
+    quantity: integer("quantity").notNull(),
+    receivedQty: integer("receivedQty").default(0).notNull(),
+    unitPrice: decimal("unitPrice", { precision: 15, scale: 2 }).notNull(),
+    discount: decimal("discount", { precision: 15, scale: 2 })
+      .default("0")
+      .notNull(),
+    total: decimal("total", { precision: 15, scale: 2 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => [
+    index("idx_purchaseOrderItems_po").on(t.poId),
+    index("idx_purchaseOrderItems_product").on(t.productId),
+    check("chk_purchase_order_item_qty_positive", sql`${t.quantity} > 0`),
+    check(
+      "chk_purchase_order_item_received_not_negative",
+      sql`${t.receivedQty} >= 0`
+    ),
+  ]
+);
+
+export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
+export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
+
+// ─── Goods Receipt Notes (سندات الاستلام GRN) ────────────────────
+// السند يرحّل المخزون فعلياً ويؤكد استلام الكميات مقابل أمر الشراء.
+export const goodsReceipts = pgTable(
+  "goods_receipts",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    ...govColumns(),
+    grnNumber: varchar("grnNumber", { length: 50 }).notNull(),
+    poId: integer("poId")
+      .notNull()
+      .references(() => purchaseOrders.id),
+    supplierId: integer("supplierId").references(() => suppliers.id),
+    branchId: integer("branchId").references(() => branches.id),
+    warehouseId: integer("warehouseId").references(() => warehouses.id),
+    status: grnStatusEnum("status").default("draft").notNull(),
+    receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+    notes: text("notes"),
+    postedAt: timestamp("postedAt"),
+    postedById: integer("postedById").references(() => users.id),
+    cancelledAt: timestamp("cancelledAt"),
+    cancelledById: integer("cancelledById").references(() => users.id),
+    cancelReason: varchar("cancelReason", { length: 255 }),
+    userId: integer("userId").references(() => users.id),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    // Sync columns
+    serverVersion: integer("serverVersion").default(1).notNull(),
+    lastSyncAt: timestamp("lastSyncAt"),
+    conflictState: varchar("conflictState", { length: 20 }).default("none"),
+    aggregateId: uuid("aggregateId"),
+  },
+  t => [
+    index("idx_goodsReceipts_tenant").on(t.tenantId),
+    index("idx_goodsReceipts_po").on(t.poId),
+    index("idx_goodsReceipts_supplier").on(t.supplierId),
+    index("idx_goodsReceipts_status").on(t.status),
+    unique("goodsReceipts_gc_tenant_unique").on(t.tenantId, t.globalCode),
+    uniqueIndex("uq_goodsReceipts_tenant_number").on(t.tenantId, t.grnNumber),
+    check("chk_goods_receipt_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type GoodsReceipt = typeof goodsReceipts.$inferSelect;
+export type InsertGoodsReceipt = typeof goodsReceipts.$inferInsert;
+
+export const goodsReceiptItems = pgTable(
+  "goods_receipt_items",
+  {
+    id: serial("id").primaryKey(),
+    grnId: integer("grnId")
+      .notNull()
+      .references(() => goodsReceipts.id),
+    poItemId: integer("poItemId").references(() => purchaseOrderItems.id),
+    productId: integer("productId")
+      .notNull()
+      .references(() => products.id),
+    productName: varchar("productName", { length: 255 }).notNull(),
+    quantityReceived: integer("quantityReceived").notNull(),
+    unitPrice: decimal("unitPrice", { precision: 15, scale: 2 }),
+    receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => [
+    index("idx_goodsReceiptItems_grn").on(t.grnId),
+    index("idx_goodsReceiptItems_product").on(t.productId),
+    check(
+      "chk_goods_receipt_item_qty_positive",
+      sql`${t.quantityReceived} > 0`
+    ),
+  ]
+);
+
+export type GoodsReceiptItem = typeof goodsReceiptItems.$inferSelect;
+export type InsertGoodsReceiptItem = typeof goodsReceiptItems.$inferInsert;
 
 // ─── Orders & Distribution ────────────────────────────────────────
 
@@ -3577,12 +3792,17 @@ export const tickets = pgTable(
       .references(() => tenants.id),
     ticketNumber: varchar("ticketNumber", { length: 40 }).notNull(),
     subject: varchar("subject", { length: 200 }).notNull(),
+    title: varchar("title", { length: 200 }), // Alias for subject / العنوان
     description: text("description"),
     customerName: varchar("customerName", { length: 150 }),
+    customerId: integer("customerId"), // Reference to customers table / مرجع للعملاء
     customerPhone: varchar("customerPhone", { length: 30 }),
     status: ticketStatusEnum("status").default("open").notNull(),
     priority: ticketPriorityEnum("priority").default("medium").notNull(),
     assignedToId: integer("assignedToId"),
+    assignedTo: integer("assignedTo"), // Direct assignment / التعيين المباشر
+    firstResponseAt: timestamp("firstResponseAt"),
+    resolvedAt: timestamp("resolvedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
     // Sync columns
@@ -7087,6 +7307,469 @@ export const workflowHistory = pgTable(
 
 export type WorkflowHistory = typeof workflowHistory.$inferSelect;
 export type InsertWorkflowHistory = typeof workflowHistory.$inferInsert;
+
+// ─── Intermediary Parties (drivers, agents, brokers, representatives) ──
+export const partyRoleEnum = pgEnum("party_role", [
+  "driver",
+  "agent",
+  "broker",
+  "intermediary",
+  "representative",
+  "distributor",
+  "wholesaler",
+  "retailer",
+  "consultant",
+  "customs_agent",
+  "logistics_provider",
+  "warehouse_operator",
+  "deliverer",
+  "collector",
+]);
+
+export const partyTypeEnum = pgEnum("party_type", [
+  "person",
+  "company",
+  "freelancer",
+]);
+
+export const intermediaryParties = pgTable(
+  "intermediary_parties",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    partyRole: partyRoleEnum("partyRole").notNull(),
+    partyType: partyTypeEnum("partyType").default("person").notNull(),
+    code: varchar("code", { length: 50 }),
+    name: varchar("name", { length: 255 }).notNull(),
+    nameAr: varchar("nameAr", { length: 255 }),
+    email: varchar("email", { length: 255 }),
+    phone: varchar("phone", { length: 50 }),
+    nationalId: varchar("nationalId", { length: 50 }),
+    taxNumber: varchar("taxNumber", { length: 50 }),
+    address: text("address"),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
+    commissionType: varchar("commissionType", { length: 20 }).default("percent"),
+    commissionValue: decimal("commissionValue", { precision: 15, scale: 2 }).default("0"),
+    bonusThreshold: decimal("bonusThreshold", { precision: 15, scale: 2 }),
+    bonusAmount: decimal("bonusAmount", { precision: 15, scale: 2 }),
+    creditLimit: decimal("creditLimit", { precision: 15, scale: 2 }).default("0"),
+    currentBalance: decimal("currentBalance", { precision: 15, scale: 2 }).default("0"),
+    status: varchar("status", { length: 20 }).default("active"),
+    notes: text("notes"),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    serverVersion: integer("serverVersion").default(1).notNull(),
+    lastSyncAt: timestamp("lastSyncAt"),
+    conflictState: varchar("conflictState", { length: 20 }).default("none"),
+    aggregateId: uuid("aggregateId"),
+  },
+  t => [
+    index("idx_intermediaryParties_tenant").on(t.tenantId),
+    index("idx_intermediaryParties_role").on(t.partyRole),
+    index("idx_intermediaryParties_status").on(t.status),
+    unique("intermediaryParties_code_tenant_unique").on(t.code, t.tenantId),
+    check("chk_intermediaryParty_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type IntermediaryParty = typeof intermediaryParties.$inferSelect;
+export type InsertIntermediaryParty = typeof intermediaryParties.$inferInsert;
+
+// ─── Document-Party Links (who handled which document) ───────────
+export const partyLinkSourceEnum = pgEnum("party_link_source", [
+  "sales_invoice",
+  "purchase_invoice",
+  "order",
+  "transfer",
+  "delivery",
+  "quotation",
+  "voucher",
+  "return",
+]);
+
+export const documentPartyLinks = pgTable(
+  "document_party_links",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    partyId: integer("partyId")
+      .notNull()
+      .references(() => intermediaryParties.id),
+    sourceType: partyLinkSourceEnum("sourceType").notNull(),
+    sourceId: integer("sourceId").notNull(),
+    role: varchar("role", { length: 50 }).notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    serverVersion: integer("serverVersion").default(1).notNull(),
+  },
+  t => [
+    index("idx_docPartyLinks_tenant").on(t.tenantId),
+    index("idx_docPartyLinks_source").on(t.sourceType, t.sourceId),
+    index("idx_docPartyLinks_party").on(t.partyId),
+    check("chk_docPartyLink_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type DocumentPartyLink = typeof documentPartyLinks.$inferSelect;
+export type InsertDocumentPartyLink = typeof documentPartyLinks.$inferInsert;
+
+// ─── Additional Expenses per Document ────────────────────────────
+export const expenseCategoryEnum = pgEnum("expense_category", [
+  "shipping",
+  "loading",
+  "unloading",
+  "customs_fee",
+  "insurance",
+  "fuel",
+  "toll",
+  "warehousing",
+  "packaging",
+  "handling",
+  "other",
+]);
+
+export const documentExpenses = pgTable(
+  "document_expenses",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    documentType: varchar("documentType", { length: 50 }).notNull(),
+    documentId: integer("documentId").notNull(),
+    category: expenseCategoryEnum("category").notNull(),
+    description: varchar("description", { length: 500 }),
+    amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 10 }).default("YER"),
+    exchangeRate: decimal("exchangeRate", { precision: 18, scale: 8 }).default("1"),
+    baseAmount: decimal("baseAmount", { precision: 15, scale: 2 }),
+    partyId: integer("partyId").references(() => intermediaryParties.id),
+    notes: text("notes"),
+    isIncludedInTotal: boolean("isIncludedInTotal").default(true),
+    createdBy: integer("createdBy").references(() => users.id),
+    approvedBy: integer("approvedBy").references(() => users.id),
+    approvedAt: timestamp("approvedAt"),
+    status: varchar("status", { length: 20 }).default("pending"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    serverVersion: integer("serverVersion").default(1).notNull(),
+  },
+  t => [
+    index("idx_docExpenses_tenant").on(t.tenantId),
+    index("idx_docExpenses_document").on(t.documentType, t.documentId),
+    index("idx_docExpenses_category").on(t.category),
+    check("chk_docExpense_amount_positive", sql`${t.amount} > 0`),
+    check("chk_docExpense_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type DocumentExpense = typeof documentExpenses.$inferSelect;
+export type InsertDocumentExpense = typeof documentExpenses.$inferInsert;
+
+// ─── Promotions / Bonuses / Offers (line-level) ──────────────────
+export const promotionTypeEnum = pgEnum("promotion_type", [
+  "percentage",
+  "fixed_amount",
+  "buy_x_get_y",
+  "bundle",
+  "volume_tier",
+  "seasonal",
+]);
+
+export const promotionStatusEnum = pgEnum("promotion_status", [
+  "draft",
+  "active",
+  "paused",
+  "expired",
+  "cancelled",
+]);
+
+export const promotions = pgTable(
+  "promotions",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    code: varchar("code", { length: 50 }),
+    name: varchar("name", { length: 255 }).notNull(),
+    nameAr: varchar("nameAr", { length: 255 }),
+    type: promotionTypeEnum("type").notNull(),
+    status: promotionStatusEnum("status").default("draft").notNull(),
+    value: decimal("value", { precision: 15, scale: 4 }),
+    minQuantity: integer("minQuantity").default(0),
+    maxQuantity: integer("maxQuantity"),
+    productIds: text("productIds"),
+    categoryIds: text("categoryIds"),
+    startDate: timestamp("startDate").notNull(),
+    endDate: timestamp("endDate").notNull(),
+    applicableTo: varchar("applicableTo", { length: 20 }).default("all"),
+    partyId: integer("partyId").references(() => intermediaryParties.id),
+    maxUses: integer("maxUses"),
+    currentUses: integer("currentUses").default(0),
+    stackable: boolean("stackable").default(false),
+    notes: text("notes"),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    serverVersion: integer("serverVersion").default(1).notNull(),
+  },
+  t => [
+    index("idx_promotions_tenant").on(t.tenantId),
+    index("idx_promotions_status").on(t.status),
+    unique("promotions_code_tenant_unique").on(t.code, t.tenantId),
+    check("chk_promotion_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type Promotion = typeof promotions.$inferSelect;
+export type InsertPromotion = typeof promotions.$inferInsert;
+
+// ─── Approval Queue (Pre-Approval Control) ───────────────────────
+export const approvalQueuePriorityEnum = pgEnum("approval_queue_priority", [
+  "low",
+  "normal",
+  "high",
+  "urgent",
+]);
+
+export const approvalQueueStatusEnum = pgEnum("approval_queue_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "modified",
+  "escalated",
+  "cancelled",
+]);
+
+export const approvalQueues = pgTable(
+  "approval_queues",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    documentType: varchar("documentType", { length: 50 }).notNull(),
+    documentId: integer("documentId").notNull(),
+    title: varchar("title", { length: 255 }),
+    description: text("description"),
+    action: varchar("action", { length: 50 }).notNull(),
+    proposedData: jsonb("proposedData").default({}),
+    previousData: jsonb("previousData").default({}),
+    priority: approvalQueuePriorityEnum("priority").default("normal"),
+    status: approvalQueueStatusEnum("status").default("pending").notNull(),
+    requestedById: integer("requestedById").references(() => users.id),
+    assignedToId: integer("assignedToId").references(() => users.id),
+    approvedById: integer("approvedById").references(() => users.id),
+    rejectedById: integer("rejectedById").references(() => users.id),
+    approvedAt: timestamp("approvedAt"),
+    rejectedAt: timestamp("rejectedAt"),
+    rejectionReason: varchar("rejectionReason", { length: 500 }),
+    modificationNote: text("modificationNote"),
+    expiresAt: timestamp("expiresAt"),
+    escalationLevel: integer("escalationLevel").default(0),
+    notes: text("notes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    serverVersion: integer("serverVersion").default(1).notNull(),
+  },
+  t => [
+    index("idx_approvalQueues_tenant").on(t.tenantId),
+    index("idx_approvalQueues_document").on(t.documentType, t.documentId),
+    index("idx_approvalQueues_status").on(t.status),
+    index("idx_approvalQueues_priority").on(t.priority),
+    index("idx_approvalQueues_assigned").on(t.assignedToId),
+    check("chk_approvalQueue_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type ApprovalQueue = typeof approvalQueues.$inferSelect;
+export type InsertApprovalQueue = typeof approvalQueues.$inferInsert;
+
+// ─── Line Item History (Revert / Audit Trail) ────────────────────
+export const lineItemActionEnum = pgEnum("line_item_action", [
+  "add",
+  "edit",
+  "delete",
+  "revert",
+  "approve",
+  "reject",
+]);
+
+export const lineItemHistory = pgTable(
+  "line_item_history",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    documentType: varchar("documentType", { length: 50 }).notNull(),
+    documentId: integer("documentId").notNull(),
+    lineItemId: integer("lineItemId"),
+    action: lineItemActionEnum("action").notNull(),
+    previousData: jsonb("previousData").default({}),
+    newData: jsonb("newData").default({}),
+    diffData: jsonb("diffData").default({}),
+    reason: text("reason"),
+    performedBy: integer("performedBy").references(() => users.id),
+    performedAt: timestamp("performedAt").defaultNow().notNull(),
+    isRevert: boolean("isRevert").default(false),
+    revertedFromId: integer("revertedFromId"),
+    serverVersion: integer("serverVersion").default(1).notNull(),
+  },
+  t => [
+    index("idx_lineItemHist_tenant").on(t.tenantId),
+    index("idx_lineItemHist_document").on(t.documentType, t.documentId),
+    index("idx_lineItemHist_lineItem").on(t.lineItemId),
+    index("idx_lineItemHist_action").on(t.action),
+    index("idx_lineItemHist_performed").on(t.performedAt),
+    check("chk_lineItemHist_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type LineItemHistory = typeof lineItemHistory.$inferSelect;
+export type InsertLineItemHistory = typeof lineItemHistory.$inferInsert;
+
+// ─── Flexible Line Items (Enhanced line items with full pricing) ─
+export const invoiceLineDiscountTypeEnum = pgEnum("invoice_line_discount_type", [
+  "percentage",
+  "fixed_amount",
+  "bundle",
+  "volume",
+]);
+
+export const flexibleLineItems = pgTable(
+  "flexible_line_items",
+  {
+    id: serial("id").primaryKey(),
+    GlobalId: uuid("GlobalId").defaultRandom().notNull().unique(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    documentType: varchar("documentType", { length: 50 }).notNull(),
+    documentId: integer("documentId").notNull(),
+    lineOrder: integer("lineOrder").notNull().default(0),
+    productId: integer("productId").references(() => products.id),
+    serviceId: integer("serviceId"),
+    productName: varchar("productName", { length: 255 }),
+    productCode: varchar("productCode", { length: 50 }),
+    batchId: integer("batchId").references(() => inventoryBatches.id),
+    serialNumbers: text("serialNumbers"),
+    quantity: decimal("quantity", { precision: 15, scale: 4 }).notNull().default("0"),
+    unitId: integer("unitId").references(() => units.id),
+    secondaryUnitId: integer("secondaryUnitId").references(() => units.id),
+    secondaryUnitFactor: decimal("secondaryUnitFactor", { precision: 15, scale: 4 }).default("1"),
+    unitPrice: decimal("unitPrice", { precision: 15, scale: 4 }).default("0"),
+    discountType: invoiceLineDiscountTypeEnum("discountType").default("percentage"),
+    discountValue: decimal("discountValue", { precision: 15, scale: 4 }).default("0"),
+    discountAmount: decimal("discountAmount", { precision: 15, scale: 2 }).default("0"),
+    taxRate: decimal("taxRate", { precision: 5, scale: 2 }).default("0"),
+    taxAmount: decimal("taxAmount", { precision: 15, scale: 2 }).default("0"),
+    subtotal: decimal("subtotal", { precision: 15, scale: 2 }).default("0"),
+    total: decimal("total", { precision: 15, scale: 2 }).default("0"),
+    weight: decimal("weight", { precision: 15, scale: 4 }),
+    volume: decimal("volume", { precision: 15, scale: 4 }),
+    expiryDate: timestamp("expiryDate"),
+    manufactureDate: timestamp("manufactureDate"),
+    status: varchar("status", { length: 20 }).default("pending"),
+    notes: text("notes"),
+    createdBy: integer("createdBy").references(() => users.id),
+    approvedBy: integer("approvedBy").references(() => users.id),
+    approvedAt: timestamp("approvedAt"),
+    rejectedById: integer("rejectedById"),
+    rejectionReason: varchar("rejectionReason", { length: 500 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    serverVersion: integer("serverVersion").default(1).notNull(),
+  },
+  t => [
+    index("idx_flexibleLines_tenant").on(t.tenantId),
+    index("idx_flexibleLines_document").on(t.documentType, t.documentId),
+    index("idx_flexibleLines_product").on(t.productId),
+    index("idx_flexibleLines_batch").on(t.batchId),
+    index("idx_flexibleLines_order").on(t.documentType, t.documentId, t.lineOrder),
+    check("chk_flexibleLine_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type FlexibleLineItem = typeof flexibleLineItems.$inferSelect;
+export type InsertFlexibleLineItem = typeof flexibleLineItems.$inferInsert;
+
+// ─── Ticket Responses (لردود على البلاغات / Customer service ticket responses) ───
+
+export const ticketResponses = pgTable(
+  "ticket_responses",
+  {
+    id: serial("id").primaryKey(),
+    ticketId: integer("ticketId")
+      .notNull()
+      .references(() => tickets.id),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    rating: integer("rating").notNull(), // 1-5 scale
+    customerComments: text("customerComments"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    // Sync columns
+    serverVersion: integer("serverVersion").default(1).notNull(),
+    lastSyncAt: timestamp("lastSyncAt"),
+    conflictState: varchar("conflictState", { length: 20 }).default("none"),
+    aggregateId: uuid("aggregateId"),
+  },
+  t => [
+    index("idx_ticketResponses_tenant").on(t.ticketId),
+    index("idx_ticketResponses_tenantId").on(t.tenantId),
+    check("chk_ticketResponse_tenant_not_null", sql`${t.ticketId} IS NOT NULL`),
+    check("chk_ticketResponse_tenantId_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type TicketResponse = typeof ticketResponses.$inferSelect;
+export type InsertTicketResponse = typeof ticketResponses.$inferInsert;
+
+// ─── Inventory Items Summary (ملخص عناصر المخزون / Inventory items summary) ───
+export const inventoryItems = pgTable(
+  "inventory_items",
+  {
+    id: serial("id").primaryKey(),
+    tenantId: integer("tenantId")
+      .notNull()
+      .references(() => tenants.id),
+    productId: integer("productId")
+      .notNull()
+      .references(() => products.id),
+    branchId: integer("branchId")
+      .notNull()
+      .references(() => branches.id),
+    currentStock: integer("currentStock").default(0).notNull(),
+    minimumStock: integer("minimumStock").default(0).notNull(),
+    costPrice: decimal("costPrice", { precision: 15, scale: 2 }).default("0").notNull(),
+    // Sync columns
+    serverVersion: integer("serverVersion").default(1).notNull(),
+    lastSyncAt: timestamp("lastSyncAt"),
+    conflictState: varchar("conflictState", { length: 20 }).default("none"),
+    aggregateId: uuid("aggregateId"),
+  },
+  t => [
+    unique("inventoryItems_productBranch_unique").on(t.productId, t.branchId),
+    index("idx_inventoryItems_tenant").on(t.tenantId),
+    index("idx_inventoryItems_branch").on(t.branchId),
+    check("chk_inventoryItem_tenant_not_null", sql`${t.tenantId} IS NOT NULL`),
+  ]
+);
+
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type InsertInventoryItem = typeof inventoryItems.$inferInsert;
 
 export const drizzleMigrations = pgTable("drizzle_migrations", {
   id: serial("id").primaryKey(),

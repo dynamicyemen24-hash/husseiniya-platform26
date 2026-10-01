@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { validateExternalAIEndpoint } from "./externalAIConfig";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -74,6 +75,8 @@ export type InvokeParams = {
   model?: string;
   thinking?: Record<string, unknown>;
   reasoning?: Record<string, unknown>;
+  /** Per-tenant OpenAI-compatible provider, decrypted only on the server. */
+  provider?: { baseUrl: string; apiKey: string; model?: string };
 };
 
 export type ToolCall = {
@@ -343,8 +346,6 @@ const fetchWithBackoff = async (
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
-
   const {
     messages,
     tools,
@@ -359,14 +360,16 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     reasoning,
     maxTokens,
     max_tokens,
+    provider,
   } = params;
+  if (!provider) assertApiKey();
 
   const payload: Record<string, unknown> = {
     messages: messages.map(normalizeMessage),
   };
 
-  if (model) {
-    payload.model = model;
+  if (model || provider?.model) {
+    payload.model = model || provider?.model;
   }
 
   if (tools && tools.length > 0) {
@@ -404,11 +407,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetchWithBackoff(resolveApiUrl(), {
+  const apiUrl = provider ? await validateExternalAIEndpoint(provider.baseUrl) : resolveApiUrl();
+  const response = await fetchWithBackoff(apiUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${provider?.apiKey || ENV.forgeApiKey}`,
     },
     body: JSON.stringify(payload),
   });

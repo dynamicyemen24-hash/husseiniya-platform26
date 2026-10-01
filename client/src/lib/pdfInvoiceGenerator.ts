@@ -1,3 +1,5 @@
+import { brand } from "@/lib/brand";
+
 // Utility for generating official printable invoice / receipt documents with QR Code
 
 /**
@@ -94,7 +96,7 @@ const TYPE_LABELS: Record<NonNullable<InvoiceData["documentType"]>, string> = {
 
 export function generatePrintableInvoiceHtml(data: InvoiceData): string {
   const instName = escapeHtml(
-    data.institutionName || "الحسينية لخدمات الأعمال"
+    data.institutionName || "اسم المنشأة"
   );
   const instPhone = data.institutionPhone
     ? escapeHtml(data.institutionPhone)
@@ -311,7 +313,7 @@ export function generatePrintableInvoiceHtml(data: InvoiceData): string {
     <div>توقيع المستلم: ___________________</div>
     <div style="text-align: center;">
       <strong>${instName}</strong><br />
-      صدر إلكترونياً عبر منصة الحسينية الموحدة — ${formattedDate}
+      صدر إلكترونياً عبر ${escapeHtml(brand.names.erpDisplay)} — ${formattedDate}
     </div>
     <div>توقيع البائع/الاستشاري: ___________________</div>
   </div>

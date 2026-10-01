@@ -36,6 +36,7 @@ import {
   ProcurementDocumentTools,
   downloadPurchaseReport,
 } from "@/components/ProcurementDocumentTools";
+import { CommunicationShare } from "@/components/CommunicationShare";
 import { toast } from "sonner";
 import {
   Truck,
@@ -652,14 +653,24 @@ function InvoicesPanel({
   const [notes, setNotes] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sourceRequisitionId, setSourceRequisitionId] = useState("");
+  const [sourceGrnId, setSourceGrnId] = useState("");
+  const [sourcePoId, setSourcePoId] = useState<number | null>(null);
   const [favoriteSupplierId, setFavoriteSupplierId] = useState(
     () => localStorage.getItem("procurement.favoriteSupplierId") || ""
   );
   const requisitionsQ = trpc.erp.listProcurements.useQuery(undefined, {
     staleTime: 60_000,
   });
+  const grnsQ = trpc.goodsReceipts.list.useQuery(
+    { limit: 100 },
+    { staleTime: 60_000 }
+  );
+  const grnViewQ = trpc.goodsReceipts.view.useQuery(
+    { id: Number(sourceGrnId) },
+    { enabled: !!sourceGrnId }
+  );
   const productsQ = trpc.products.list.useQuery(
-    { limit: 500 },
+    { limit: 100 },
     { staleTime: 60_000 }
   );
 
@@ -706,6 +717,37 @@ function InvoicesPanel({
     setPaidAmount("0");
     setNotes("");
     setSourceRequisitionId("");
+    setSourceGrnId("");
+    setSourcePoId(null);
+  };
+
+  const importFromGrn = () => {
+    if (!sourceGrnId) return;
+    const grn = (grnsQ.data?.items ?? []).find(
+      (g: any) => String(g.id) === sourceGrnId
+    );
+    if (!grn) {
+      toast.error("سند الاستلام غير موجود");
+      return;
+    }
+    const lines = grnViewQ.data?.lines ?? [];
+    if (lines.length === 0) {
+      toast.error("لا توجد بنود في هذا السند");
+      return;
+    }
+    setSupplierId(grn.supplierId ? String(grn.supplierId) : "");
+    setItems(
+      lines.map((l: any) => ({
+        productId: l.productId,
+        productName: l.productName,
+        quantity: Math.max(1, l.quantityReceived),
+        unitPrice: String(l.unitPrice ?? "0"),
+        discount: "0",
+      }))
+    );
+    setSourcePoId(grn.poId ?? null);
+    setNotes(`مرتبط بسند استلام ${grn.grnNumber}`);
+    toast.success("تم تحميل بنود السند كمسودة فاتورة");
   };
 
   const saveFavoriteSupplier = () => {
@@ -796,6 +838,7 @@ function InvoicesPanel({
             >
               <Download className="w-3.5 h-3.5 ml-1" /> تنزيل التقرير
             </Button>
+            <CommunicationShare docType="procurement_report" variant="text" label="مشاركة التقرير" />
             <Button
               onClick={() => {
                 resetForm();
@@ -896,6 +939,21 @@ function InvoicesPanel({
                         <ProcurementDocumentTools
                           invoice={p}
                           supplierName={supplierName(p.supplierId)}
+                        />
+                        <CommunicationShare
+                          docType="purchase_invoice"
+                          docId={p.id}
+                          label="فاتورة"
+                          summary={{
+                            documentLabel: "فاتورة مشتريات",
+                            documentNumber: p.invoiceNumber,
+                            supplierName: supplierName(p.supplierId),
+                            dateText: fmtDate(p.invoiceDate ?? p.createdAt),
+                            total: p.total,
+                            paidAmount: p.paidAmount,
+                            status: STATUS_LABEL[p.status] ?? p.status,
+                            notes: p.notes,
+                          }}
                         />
                         {p.status !== "cancelled" && (
                           <Button
@@ -1015,6 +1073,49 @@ function InvoicesPanel({
                     onClick={importFromRequisition}
                   >
                     تحميل كمسودة
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-dashed border-emerald-400/40 bg-emerald-500/5 p-3">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="min-w-[240px] flex-1">
+                    <Label className="text-[10px]">
+                      الربط بسند استلام (مطابقة ثلاثية)
+                    </Label>
+                    <Select
+                      value={sourceGrnId}
+                      onValueChange={v => {
+                        setSourceGrnId(v);
+                        setSourcePoId(null);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="اختر سند استلام مرحّلاً" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(grnsQ.data?.items ?? [])
+                          .filter((g: any) => g.status === "posted")
+                          .map((g: any) => (
+                            <SelectItem key={g.id} value={String(g.id)}>
+                              {g.grnNumber} — {supplierName(g.supplierId)}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      يحمّل بنود السند ويثبّت المورد، ويربط الفاتورة بأمر الشراء
+                      وسند الاستلام لمنع ازدواج الترحيل.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 text-xs"
+                    disabled={!sourceGrnId}
+                    onClick={importFromGrn}
+                  >
+                    تحميل البنود
                   </Button>
                 </div>
               </div>
@@ -1193,6 +1294,8 @@ function InvoicesPanel({
                 onClick={() =>
                   createM.mutate({
                     supplierId: supplierId ? Number(supplierId) : undefined,
+                    poId: sourcePoId ?? undefined,
+                    grnId: sourceGrnId ? Number(sourceGrnId) : undefined,
                     items: items.map(i => ({
                       productId: i.productId,
                       productName: i.productName,

@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { goToMarketing } from "@/lib/deploymentLinks";
 import {
   Menu,
   X,
@@ -10,7 +11,7 @@ import {
 } from "lucide-react";
 import { UTILITY_LINKS, APP_GROUPS } from "@/lib/nav";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { BrandMark } from "@/components/BrandLogo";
+import { ProductLogo } from "@/components/BrandLogo";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MessagesButton } from "@/components/MessagesButton";
@@ -31,6 +32,22 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false); // desktop rail
   const { user, logout } = useAuth();
 
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  useEffect(() => setOpen(false), [location]);
+
   const renderSidebar = (
     variant: "desktop" | "drawer",
     isCollapsed: boolean
@@ -47,12 +64,7 @@ export function AppSidebar() {
       <div className="flex flex-col h-full">
         {/* Brand mark + collapse / close controls */}
         <div className="flex items-center gap-2.5 px-3 py-4 border-b border-white/10">
-          {!compact && <BrandMark size={34} />}
-          {compact && (
-            <div className="mx-auto">
-              <BrandMark size={30} />
-            </div>
-          )}
+          <ProductLogo size={compact ? 30 : 36} compact={compact} />
           {isDrawer ? (
             <button
               onClick={() => setOpen(false)}
@@ -208,7 +220,7 @@ export function AppSidebar() {
             )}
           </div>
           <button
-            onClick={() => setLocation("/")}
+            onClick={goToMarketing}
             title={compact ? "الموقع الإلكتروني والخدمات" : undefined}
             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-white/65 hover:bg-white/10 hover:text-white transition-colors ${
               compact ? "justify-center" : ""
@@ -221,7 +233,7 @@ export function AppSidebar() {
             <button
               onClick={async () => {
                 await logout();
-                setLocation("/");
+                goToMarketing();
               }}
               title={compact ? "تسجيل الخروج" : undefined}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-300/80 hover:bg-rose-500/10 hover:text-rose-200 transition-colors ${
@@ -252,8 +264,10 @@ export function AppSidebar() {
       {/* Mobile drawer trigger + drawer */}
       <button
         onClick={() => setOpen(true)}
-        className="lg:hidden fixed bottom-4 right-4 z-40 bg-brand text-ink-deep p-3 rounded-2xl shadow-2xl hover:scale-105 transition-transform"
+        className="lg:hidden fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-40 min-h-11 min-w-11 bg-brand text-ink-deep p-3 rounded-2xl shadow-2xl hover:scale-105 transition-transform"
         aria-label="فتح قائمة النظام"
+        aria-expanded={open}
+        aria-controls="mobile-system-navigation"
       >
         <Menu className="w-5 h-5" />
       </button>
@@ -266,7 +280,7 @@ export function AppSidebar() {
             onClick={() => setOpen(false)}
           />
           {/* Drawer panel */}
-          <aside className="relative w-72 max-w-[85vw] bg-ink border-l border-white/10 shadow-2xl animate-in slide-in-from-right duration-300">
+          <aside id="mobile-system-navigation" role="dialog" aria-modal="true" aria-label="قائمة النظام" className="relative w-72 max-w-[85vw] bg-ink border-l border-white/10 shadow-2xl animate-in slide-in-from-right duration-300">
             {renderSidebar("drawer", false)}
           </aside>
         </div>

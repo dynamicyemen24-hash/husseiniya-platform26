@@ -122,7 +122,8 @@ const auditMiddleware = t.middleware(async opts => {
     route.startsWith("vouchers.") ||
     route.startsWith("accountingClosing.") ||
     route.startsWith("inventory.adjustStock") ||
-    route.startsWith("inventory.physicalCount");
+    route.startsWith("inventory.physicalCount") ||
+    route.startsWith("inventory.transferStock");
 
   if (!shouldAudit || !ctx.tenantId || !ctx.user) {
     return next();

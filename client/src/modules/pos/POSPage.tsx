@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { brand } from "@/lib/brand";
 import { friendlyError } from "@/lib/friendlyErrors";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -517,7 +516,7 @@ export default function POSModule() {
         options: {
           copies: 1,
           cutPaper: true,
-          header: settingsData?.institutionName || brand.names.siteName,
+          header: settingsData?.institutionName || "اسم المنشأة",
           footer: "شكراً لتعاملكم معنا",
           quality: "normal",
           encoding: "utf-8",
@@ -1798,7 +1797,7 @@ export default function POSModule() {
                             type: "welcome",
                             lines: [
                               "اختبار شاشة العميل",
-                              "الحسينية لخدمات الأعمال",
+                              settingsData?.institutionName || "اسم المنشأة",
                             ],
                             duration: 3000,
                           })
@@ -1866,12 +1865,12 @@ export default function POSModule() {
                           id="receiptHeader"
                           placeholder={
                             settingsData?.institutionName ||
-                            brand.names.siteName
+                            "اسم المنشأة"
                           }
                           value={
                             config.receiptHeader ||
                             settingsData?.institutionName ||
-                            brand.names.siteName
+                            "اسم المنشأة"
                           }
                           onChange={e =>
                             updateSettingsMutation.mutate({

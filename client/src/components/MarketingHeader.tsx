@@ -1,5 +1,6 @@
 import React from "react";
 import { useLocation } from "wouter";
+import { goToSystem } from "@/lib/deploymentLinks";
 import { withViewTransition } from "@/lib/viewTransition";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -207,7 +208,7 @@ export function MarketingHeader({ onOpenSettings }: Props) {
           {/* Official Brand Mark in Top Bar */}
           <BrandLogo size={18} withWordmark={false} onDark={false} />
           <span className="hidden xl:inline font-medium text-slate-700">
-            {brand.names.siteName} — منذ ٢٠١٨
+            {brand.names.siteName}
           </span>
         </div>
         <div className="flex items-center gap-4 font-medium text-slate-600">
@@ -243,7 +244,7 @@ export function MarketingHeader({ onOpenSettings }: Props) {
             className="flex items-center gap-3 cursor-pointer group/brand shrink-0"
             onClick={() => setLocation("/")}
             role="link"
-            aria-label="الرئيسية — {brand.names.siteName}"
+            aria-label={`الرئيسية — ${brand.names.siteName}`}
           >
             <BrandLogo size={32} withWordmark={true} onDark={true} />
           </div>
@@ -382,7 +383,7 @@ export function MarketingHeader({ onOpenSettings }: Props) {
             <div className="flex items-center gap-2 ml-2 pl-2 border-r border-slate-200">
               {isAuthenticated ? (
                 <Button
-                  onClick={() => setLocation("/app")}
+                  onClick={() => goToSystem("/app")}
                   className="bg-brand hover:bg-brandDeep text-white font-bold h-8 px-4 rounded-lg text-[13px] flex items-center gap-1.5"
                 >
                   <Zap className="w-3.5 h-3.5" />
@@ -392,13 +393,13 @@ export function MarketingHeader({ onOpenSettings }: Props) {
                 <>
                   <Button
                     variant="ghost"
-                    onClick={() => setLocation("/login")}
+                    onClick={() => goToSystem("/login")}
                     className="hidden lg:inline-flex h-8 px-3.5 rounded-lg text-[13px] text-slate-700 hover:bg-slate-50"
                   >
                     دخول النظام
                   </Button>
                   <Button
-                    onClick={() => setLocation("/login")}
+                    onClick={() => goToSystem("/login")}
                     className="bg-brand hover:bg-brandDeep text-white font-bold h-8 px-4 rounded-lg text-[13px] flex items-center gap-1.5"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
@@ -477,7 +478,7 @@ export function MarketingHeader({ onOpenSettings }: Props) {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setLocation("/login");
+                    goToSystem("/login");
                     setMobileOpen(false);
                   }}
                   className="h-9 text-xs border-slate-200"
@@ -486,7 +487,7 @@ export function MarketingHeader({ onOpenSettings }: Props) {
                 </Button>
                 <Button
                   onClick={() => {
-                    setLocation("/login");
+                    goToSystem("/login");
                     setMobileOpen(false);
                   }}
                   className="h-9 text-xs bg-brand hover:bg-brandDeep text-white"
