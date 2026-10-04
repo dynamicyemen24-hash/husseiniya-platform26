@@ -867,6 +867,19 @@ export default function POSModule() {
     [utils, cart, session]
   );
 
+  const handleDeleteHold = useCallback(
+    async (holdId: number, holdCode: string) => {
+      if (!window.confirm(`هل تريد حذف الفاتورة المعلقة ${holdCode}؟`)) return;
+      try {
+        await session.deleteHold(holdId);
+        toast.success(`تم حذف الفاتورة المعلقة: ${holdCode}`);
+      } catch (e: any) {
+        toast.error(friendlyError(e, "فشل حذف الفاتورة المعلقة"));
+      }
+    },
+    [session]
+  );
+
   const handleCompleteSale = useCallback(() => {
     const submission = cart.getCartForSubmission();
 
@@ -2032,9 +2045,7 @@ export default function POSModule() {
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() =>
-                          toast.info("حذف الفواتير المعلقة قريباً")
-                        }
+                        onClick={() => handleDeleteHold(hold.id, hold.holdId)}
                       >
                         حذف
                       </Button>

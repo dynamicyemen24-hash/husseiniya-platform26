@@ -97,6 +97,14 @@ current-token.txt
 b.txt
 c.txt
 t.txt
+_*.tmp.cjs
+_dbprobe*.cjs
+
+# Local agent-mission state (machine-specific, never commit)
+mission.json
+mission.json.bak
+.mission.json.*.tmp
+checkpoints/
 
 # Playwright artifacts
 test-results/

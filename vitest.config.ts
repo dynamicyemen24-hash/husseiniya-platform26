@@ -20,6 +20,11 @@ export default defineConfig({
       "client/src/**/*.test.ts",
       "client/src/**/*.spec.ts",
     ],
+    // Container-backed integration suites have their own config + runner
+    // (`vitest.integration.config.ts` via `pnpm test:integration`, with a
+    // dedicated CI job). Excluding them here keeps `pnpm test` a pure unit
+    // run that stays green on machines without a container runtime.
+    exclude: ["server/**/*.integration.test.ts"],
     // Load .env so the DB-backed integration tests (guarded by
     // `!process.env.DATABASE_URL`) actually execute against the live database.
     setupFiles: ["./vitest.setup.ts"],

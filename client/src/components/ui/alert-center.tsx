@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -232,7 +232,8 @@ export function AlertCenter({
   className,
 }: AlertCenterProps) {
   const unread = alerts.filter(a => !a.read).length;
-  const visible = alerts.slice(0, limit);
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? alerts : alerts.slice(0, limit);
 
   return (
     <Card className={cn("surface rounded-2xl overflow-hidden", className)}>
@@ -258,10 +259,13 @@ export function AlertCenter({
           )}
           <button
             className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-            onClick={() => {}}
+            onClick={() => setExpanded(v => !v)}
+            aria-expanded={expanded}
           >
-            <ChevronLeft className="w-3 h-3" />
-            <span>الكل</span>
+            <ChevronLeft
+              className={cn("w-3 h-3 transition-transform", expanded && "rotate-90")}
+            />
+            <span>{expanded ? "عرض أقل" : "الكل"}</span>
           </button>
         </div>
       </CardHeader>
@@ -274,8 +278,11 @@ export function AlertCenter({
         ) : (
           visible.map(alert => <AlertRow key={alert.id} item={alert} />)
         )}
-        {alerts.length > limit && (
-          <button className="w-full text-center text-[10px] text-brand hover:text-brand-deep font-bold py-1.5 transition-colors">
+        {!expanded && alerts.length > limit && (
+          <button
+            onClick={() => setExpanded(true)}
+            className="w-full text-center text-[10px] text-brand hover:text-brand-deep font-bold py-1.5 transition-colors"
+          >
             عرض {alerts.length - limit} تنبيهات أخرى
           </button>
         )}

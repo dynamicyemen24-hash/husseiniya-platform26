@@ -401,7 +401,14 @@ async function seedDefaultAccountsForTenant(
         .where(eq(settings.id, existingSettings[0].id));
     } else if (
       existingSettings[0].institutionName === "مؤسسة الحسينية لخدمات الأعمال" &&
-      tenantRecord?.name && tenantRecord.name !== "مؤسسة الحسينية لخدمات الأعمال"
+      tenantRecord?.name &&
+      tenantRecord.name !== "مؤسسة الحسينية لخدمات الأعمال" &&
+      // Never clobber the meaningful schema default with an unnamed-tenant
+      // placeholder ("Default Tenant" / blank). A generic tenant name is not
+      // a customization — replacing the default with it destroys real data
+      // (see migration 0029 restoring rows damaged by the unguarded version).
+      tenantRecord.name !== "Default Tenant" &&
+      tenantRecord.name.trim() !== ""
     ) {
       // Replace the legacy vendor-name default only; preserve tenant-customized fields.
       await db
@@ -4606,10 +4613,18 @@ ${input.rawText || input.fileUrl || "لا يوجد نص"}
       )
       .mutation(async ({ input, ctx }) => {
         if (!ctx.tenantId) throw new Error("يجب إنشاء مؤسسة أولاً");
+        // Tenant isolation: a branch can only be created under the caller's
+        // own tenant — never trust a client-supplied tenantId for a write.
+        if (input.tenantId !== ctx.tenantId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "لا يمكن إنشاء فرع خارج مؤسستك",
+          });
+        }
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         await db.insert(branches).values({
-          tenantId: input.tenantId,
+          tenantId: ctx.tenantId,
           name: input.name,
           code: input.code,
           city: input.city || null,
@@ -4618,7 +4633,7 @@ ${input.rawText || input.fileUrl || "لا يوجد نص"}
         await db.insert(activityLogs).values({
           userId: ctx.user.id,
           action: `إضافة فرع جديد: ${input.name} (${input.code})`,
-          details: `تم إنشاء الفرع تحت المؤسسة رقم ${input.tenantId}`,
+          details: `تم إنشاء الفرع تحت المؤسسة رقم ${ctx.tenantId}`,
         });
         return { success: true };
       }),

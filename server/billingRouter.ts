@@ -911,9 +911,25 @@ export const billingRouter = router({
         idempotencyKey: z.string().max(255).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // Session binding: an authenticated caller can only claim for their own
+      // tenant — a client-supplied tenantId pointing elsewhere is rejected.
+      // Anonymous self-service claim (logged-out activation) still works
+      // because the voucher code itself is the capability.
+      const sessionTenantId = ctx.user?.tenantId ?? null;
+      if (
+        sessionTenantId &&
+        input.tenantId &&
+        input.tenantId !== sessionTenantId
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "لا يمكن تفعيل الاشتراك لمؤسسة أخرى — سجّل الدخول بالمؤسسة الصحيحة",
+        });
+      }
+      const effectiveTenantId = sessionTenantId ?? input.tenantId;
       // منع تلوث tenantId=0 — يجب تحديد مؤسسة حقيقية
-      if (!input.tenantId || input.tenantId <= 0) {
+      if (!effectiveTenantId || effectiveTenantId <= 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "معرّف المؤسسة مطلوب — سجّل الدخول أولاً ثم أعد إدخال الرمز",
@@ -964,7 +980,7 @@ export const billingRouter = router({
       const existingSub = await db
         .select({ id: tenantSubscriptions.id })
         .from(tenantSubscriptions)
-        .where(eq(tenantSubscriptions.tenantId, input.tenantId!))
+        .where(eq(tenantSubscriptions.tenantId, effectiveTenantId))
         .limit(1);
 
       const planId = voucher.planId;
@@ -979,10 +995,10 @@ export const billingRouter = router({
             currentPeriodEnd: end,
             paymentProvider: "voucher",
           })
-          .where(eq(tenantSubscriptions.tenantId, input.tenantId!));
+          .where(eq(tenantSubscriptions.tenantId, effectiveTenantId));
       } else {
         await db.insert(tenantSubscriptions).values({
-          tenantId: input.tenantId!,
+          tenantId: effectiveTenantId,
           planId,
           status: "active",
           billingCycle: "monthly",
@@ -1000,7 +1016,7 @@ export const billingRouter = router({
           trialEndsAt: end,
           updatedAt: start,
         })
-        .where(eq(settings.tenantId, input.tenantId!));
+        .where(eq(settings.tenantId, effectiveTenantId));
 
       // 4) Record an invoice + payment (no external provider)
       const invoiceNumber = `INV-${start.getFullYear()}-${Math.random()
@@ -1012,7 +1028,7 @@ export const billingRouter = router({
       const [invoice] = await db
         .insert(billingInvoices)
         .values({
-          tenantId: input.tenantId!,
+          tenantId: effectiveTenantId,
           subscriptionId: existingSub[0]?.id ?? null,
           invoiceNumber,
           status: "paid",
@@ -1028,7 +1044,7 @@ export const billingRouter = router({
         .returning();
 
       await db.insert(paymentHistory).values({
-        tenantId: input.tenantId!,
+        tenantId: effectiveTenantId,
         invoiceId: invoice.id,
         amount,
         currency: voucher.currency,
@@ -1047,7 +1063,7 @@ export const billingRouter = router({
           activatedAt: start,
           redemption: {
             method: "voucher",
-            tenantId: input.tenantId!,
+            tenantId: effectiveTenantId,
           },
         })
         .where(eq(subscriptionCodes.id, voucher.id));
